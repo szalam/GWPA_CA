@@ -1,0 +1,5 @@
+WARNING:fiona._env:Value 19492256211 of field Shape_Area of feature 0 not successfully written. Possibly due to too larger number with respect to field width
+WARNING:googleapiclient.http:Sleeping 1.48 seconds before retry 1 of 5 for request: POST https://earthengine.googleapis.com/v1alpha/projects/earthengine-legacy/value:compute?prettyPrint=false&alt=json, after 429
+WARNING:googleapiclient.http:Sleeping 3.99 seconds before retry 2 of 5 for request: POST https://earthengine.googleapis.com/v1alpha/projects/earthengine-legacy/value:compute?prettyPrint=false&alt=json, after 429
+WARNING:googleapiclient.http:Sleeping 5.37 seconds before retry 3 of 5 for request: POST https://earthengine.googleapis.com/v1alpha/projects/earthengine-legacy/value:compute?prettyPrint=false&alt=json, after 429
+WARNING:googleapiclient.http:Sleeping 13.52 seconds before retry 4 of 5 for request: POST https://earthengine.googleapis.com/v1alpha/projects/earthengine-legacy/value:compute?prettyPrint=false&alt=json, after 429
