@@ -2,6 +2,7 @@
 from cProfile import label
 from datetime import datetime
 import ee
+import geemap
 import sys
 import pandas as pd
 import geopandas as gp
@@ -20,35 +21,53 @@ ee.Initialize()
 sys.path.insert(0,'src')
 import config
 
-sel_var = 'gpm' # gpm, ndvi
+sel_var = 'chirps' # gpm, ndvi
 
 #=========================
 # Processing NDVI, Precipitation data
 #=========================
 # %%
+# Note:
+# The code was not working when the selected domain is very small such as koreatown in LA. 
+# When size is increased it works.
+
 # Read focus region
-# gdf = gp.read_file(config.shapefile_dir / "kw/Kaweah_subregion.shp")
-gdf = gp.read_file(config.shapefile_dir / "kw/Watershed/Watershedboundary.shp")
+# gdf = gp.read_file(config.shapefile_dir / "kw/Watershed/Watershedboundary.shp")
+# gdf = gp.read_file(config.shapefile_dir / "LosAngeles_ktown.shp")
+gdf = gp.read_file(config.shapefile_dir / "Khulna.shp")
+
 gdf = gdf.to_crs('epsg:4326')
 gdf.boundary.plot()
 
-area_shp = gdf['geometry']
+area_shp = gdf['geometry'] 
 reg = gf.gp_to_ee_poly(area_shp)
 
+
+# losangeles = ee.Geometry.Polygon([[[-118.2986075736749, 34.0656551967962],
+#           [-118.2986075736749, 34.06394873592316],
+#           [-118.29611848370908, 34.06394873592316],
+#           [-118.29611848370908, 34.0656551967962]]])
+
+# reg = losangeles
+
 #%%
-startDate = '2015-01-01'
-endDate = '2018-12-31'
+startDate = '2021-01-01'
+endDate = '2022-10-31'
 geeinfo = gf.data_info()
 
 modisNDVI = geeinfo['modis_ndvi'][0].select(geeinfo['modis_ndvi'][1]).filterDate(startDate, endDate)
-gpmprecip = geeinfo['gpm'][0].select(geeinfo['gpm'][1]).filterDate(startDate, endDate)
+
+if sel_var == 'gpm':
+    precip_ee = geeinfo['gpm'][0].select(geeinfo['gpm'][1]).filterDate(startDate, endDate)
+if sel_var == 'chirps':
+    precip_ee = geeinfo['chirps'][0].select(geeinfo['gpm'][1]).filterDate(startDate, endDate)
 
 if sel_var == 'ndvi':
     eedata = modisNDVI
     eescale = geeinfo['modis_ndvi'][3]
-if sel_var == 'gpm':
-    eedata = gpmprecip
-    eescale = geeinfo['gpm'][3]
+if (sel_var == 'gpm' or sel_var == 'chirps'):
+    eedata = precip_ee
+    eescale = geeinfo[sel_var][3]
 
 #%%
 def get_reg_ee(n):
@@ -59,14 +78,14 @@ def get_reg_ee(n):
         'Date':date.format('yyyy-MM')
     })
     
-    tempNDVI = (eedata.filter(ee.Filter.calendarRange(y, y, 'year'))
+    tmpval = (eedata.filter(ee.Filter.calendarRange(y, y, 'year'))
                 .filter(ee.Filter.calendarRange(m, m, 'month'))
                 .mean()
                 .reduceRegion(
                     reducer = ee.Reducer.mean(),
                     geometry = reg,
                     scale = eescale))
-    return dic.combine(tempNDVI)
+    return dic.combine(tmpval)
 
 #%%
 #Total number of months
@@ -78,11 +97,12 @@ if sel_var == 'ndvi':
     ndvi_df.tail(4)
     gf.get_ts_plot(ndvi_df,label_n='NDVI')
 
-if sel_var == 'gpm':
+if (sel_var == 'gpm' or sel_var == 'chirps'):
     gpm_yrmo = ee.List.sequence(0, month_count).map(get_reg_ee)
     gpm_df= pd.DataFrame(gpm_yrmo.getInfo())
     gpm_df.tail(4)
     gf.get_ts_plot(gpm_df,label_n = 'Precipitation')
+
 
 # %%
 # Monthly sum relatively slow code
@@ -132,4 +152,26 @@ for i in crop_sel:
     df_pl = pd.DataFrame({'Year': yr_ser, 'Area_sqkm' :list(val)})
 
     df_pl.plot(x = 'Year', y = 'Area_sqkm', label = c_type,ylabel = 'Area [sq. km]')
+# %%
+
+
+# You can simply copy and paste your GEE JavaScripts into a code block wrapped with trip quotes and pass it to a variable.
+
+# For example, you can grap GEE JavaScripts from GEE Documentation.
+
+js_snippet = """
+var image = ee.ImageCollection("NASA/GPM_L3/IMERG_V06")
+var data=image.filterDate('2022-11-1','2022-11-8')
+print(data)
+
+var ppt=data.map(function(data){
+  return data.clip(AOI)
+})
+var precipitation=ppt.select('precipitationCal')
+print(precipitation,'precipitation')
+"""
+# %%
+geemap.js_snippet_to_py(
+    js_snippet, add_new_cell=True, import_ee=True, import_geemap=True, show_map=True
+)
 # %%
