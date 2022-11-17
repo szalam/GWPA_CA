@@ -54,6 +54,18 @@ def get_polut_stat(c_df, uniq = 0, uniq_col = 'WELL ID', stat_sel = 'max'):
     
     return c2
 
+def get_polut_scatter(cmax_c,x_val,yaxis_lim = None):
+    fig, ax = plt.subplots(figsize=(7, 7))
+    
+    sc = ax.scatter(cmax_c[x_val],cmax_c.VALUE)
+    # plt.legend(loc="upper left")
+    plt.xlabel(x_val, fontsize=20)
+    plt.ylabel('Polut concentration', fontsize=20)
+    # plt.legend(fontsize=17) 
+    plt.tick_params(axis='both', which='major', labelsize=17)
+    if yaxis_lim is not None:
+            plt.ylim([0,yaxis_lim])
+    plt.show()
 
 def df_to_gpd(c_df, lat_col_name = 'APPROXIMATE LATITUDE', lon_col_name = 'APPROXIMATE LONGITUDE'):
     """
@@ -137,7 +149,7 @@ def point_clip(file_sel = None, pt_dt = None, reg = None):
     return pt
 
 #%% 
-def plt_domain(gdf_pol, mcl = None , region = None, cafo_shp = None, gwpa = None, aem = None, well = None, welltype = None, polut_factor = None):
+def plt_domain(gdf_pol, mcl = None , region = None, cafo_shp = None, gwpa = None, aem = None, well = None, welltype = None, polut_factor = None, c_name = 'Nitrate'):
     """
     Plot water quality measurement locations along with other shapes
 
@@ -163,11 +175,11 @@ def plt_domain(gdf_pol, mcl = None , region = None, cafo_shp = None, gwpa = None
         gdf_pol = gdf_pol[gdf_pol.VALUE > mcl]
         
     if polut_factor is None:
-        gdf_pol.plot(ax = ax, label="Pollutant", color = 'b', markersize = .5, zorder=2, alpha =.7)
+        gdf_pol.plot(ax = ax, label=c_name, color = 'b', markersize = .5, zorder=10, alpha =.7)
         
     if polut_factor is not None:
         siz = gdf_pol.VALUE
-        gdf_pol.plot(ax = ax, label="Pollutant", color = 'b', markersize = siz*polut_factor, zorder=2, alpha =.7)
+        gdf_pol.plot(ax = ax, label=c_name, color = 'b', markersize = siz*polut_factor, zorder=2, alpha =.7)
     
     if region is not None:
         region.plot( ax = ax, label = 'Region',facecolor = 'none' ,edgecolor = 'grey', lw = .5, zorder=1, alpha = .8)
@@ -176,7 +188,7 @@ def plt_domain(gdf_pol, mcl = None , region = None, cafo_shp = None, gwpa = None
         cafo_shp.plot( ax = ax, label = 'Cafo',edgecolor = 'grey', lw = .5, zorder=1, alpha = .8)
     
     if gwpa is not None:
-        gwpa.plot( ax = ax, label = 'GWPA',facecolor = 'none', edgecolor = 'red', lw = .5, zorder=3, alpha = .8)
+        gwpa.plot( ax = ax, label = 'GWPA',facecolor = 'gray', edgecolor = 'black', lw = .5, zorder=1, alpha = .3)
     
     if aem is not None:
         aem.plot( ax = ax, label = 'AEM',facecolor = 'none', edgecolor = 'brown', lw = .5, zorder=3, alpha = .8)
@@ -188,6 +200,7 @@ def plt_domain(gdf_pol, mcl = None , region = None, cafo_shp = None, gwpa = None
             well = well.loc[well['well_use'] == welltype]
             well.plot( ax = ax, label = 'Well',edgecolor = 'green', lw = .5, zorder=1, alpha = .8)
 
+    plt.axis(False)
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles, fontsize=12, loc='upper right')
 
