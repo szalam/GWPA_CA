@@ -8,7 +8,8 @@ data_path = utils.get_datafpath()
 data_raw = data_path / "raw"
 data_processed = data_path / "processed"
 
-nitrate_data_dir = data_raw / "nitrate_data"
+data_gama = data_raw / 'GAMA/Initial_download/TOP 10 CHEMICALS'
+data_aem_interp = data_processed / 'AEM'
 shapefile_dir = data_raw / "shapefile"
 
 #%%

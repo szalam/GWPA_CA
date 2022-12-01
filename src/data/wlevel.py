@@ -263,6 +263,16 @@ plt.title('IDW interpolation: spring 2021 (mean of 10000 realizations)', fontsiz
 plt.xlabel('Longitude', fontsize=20)
 plt.ylabel('Latitude', fontsize=20)
 
+#%%
+# Export groundwater depth data
+loc_file = f'{config.data_processed}/GWdepth_interpolated'
+with open(f'{loc_file}/GWdepth_spring.npy', 'wb') as f:
+    np.save(f, z_mean)
+    
+with open(f'{loc_file}/X_cv_gwdepth.npy', 'wb') as f:
+    np.save(f, xx)
+with open(f'{loc_file}/Y_cv_gwdepth.npy', 'wb') as f:
+    np.save(f, yy)
 
 # %%
 fig, ax = plt.subplots(figsize=(15,15))

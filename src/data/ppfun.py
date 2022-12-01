@@ -265,3 +265,20 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
         closest_points['distance'] = dist * earth_radius
 
     return closest_points
+
+def gwdep_array_gdf(gwdp,gwdp_x,gwdp_y):
+    arr = gwdp
+    # shp = arr.shape
+    r = gwdp_x
+    c = gwdp_y
+    df_res = pd.DataFrame(np.c_[r.ravel(), c.ravel(), arr.ravel()], \
+                                    columns=((['x','y','gwdep'])))
+
+    # converting aem data to geodataframe
+    gdfres = gpd.GeoDataFrame(
+        df_res, geometry=gpd.points_from_xy(df_res.x, df_res.y))
+
+    # setting data coordinate to lat lon
+    gdfres = gdfres.set_crs(epsg='4326')
+
+    return gdfres
