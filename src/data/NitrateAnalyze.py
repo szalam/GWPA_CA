@@ -5,7 +5,6 @@ import ppfun as dp
 import numpy as np
 import pandas as pd
 import geopandas as gpd
-import fiona
 import warnings
 from shapely.ops import nearest_points, Point
 import matplotlib.pyplot as plt
@@ -13,6 +12,8 @@ from scipy.spatial import cKDTree
 from aempolutmod import aempol
 from matplotlib.colors import LogNorm
 from scipy import stats
+import os
+import pickle
 
 import config
 
@@ -77,8 +78,7 @@ gwd_gdf = dp.gwdep_array_gdf(gwdp,gwdp_x,gwdp_y)
 
 # CAFO dating data 
 cafo_dts = pd.read_csv(config.data_processed / "CAFO_dating/CA_final_with_dates.csv")
-cafo_dts_gdf = gpd.GeoDataFrame(
-    cafo_dts, geometry=gpd.points_from_xy(cafo_dts.longitude, cafo_dts.latitude))
+cafo_dts_gdf = gpd.GeoDataFrame(cafo_dts, geometry=gpd.points_from_xy(cafo_dts.longitude, cafo_dts.latitude))
 
 #%%
 # read sagbi data. Previously exported to json. If first time, then import shp.
@@ -144,7 +144,16 @@ aem_fil_loc2, interpolated_aem_file2 = aem_dwr_info(file_aem = file_aem, aem_src
                                                     aem_value_type = aem_value_type, 
                                                     aem_lyr_lim = aem_lyr_lim, aem_reg = aem_reg2)
 
-apmod = aempol(cmax_c = cmax_c,c_threshold = MCL,gwpa = gwpa, 
+# combine aem dataset from two sources.
+gdfres1 = dp.get_aem_from_npy(file_loc_interpolated = aem_fil_loc1, file_aem_interpolated = interpolated_aem_file1, 
+                            aemregion = aem_reg, aemsrc = aem_src)
+gdfres2 = dp.get_aem_from_npy(file_loc_interpolated = aem_fil_loc2, file_aem_interpolated = interpolated_aem_file2, 
+                            aemregion = aem_reg2, aemsrc = aem_src)
+
+gdfcomb = pd.concat([gdfres1, gdfres2])
+
+#%%
+apmod = aempol(gdfinput = gdfcomb, cmax_c = cmax_c,c_threshold = MCL,gwpa = gwpa, 
                             aemlyrlim = aem_lyr_lim, file_loc_interpolated = aem_fil_loc1, 
                             file_aem_interpolated = interpolated_aem_file1,
                             resistivity_threshold = aem_threshold, coord = None,
@@ -154,21 +163,18 @@ apmod = aempol(cmax_c = cmax_c,c_threshold = MCL,gwpa = gwpa,
                             gwd_gdf = gwd_gdf,
                             sagbi = sagbi_unmod)
 
-apmod2 = aempol(cmax_c = cmax_c,c_threshold = MCL,gwpa = gwpa, 
-                            aemlyrlim = aem_lyr_lim, file_loc_interpolated = aem_fil_loc2, 
-                            file_aem_interpolated = interpolated_aem_file2,
-                            resistivity_threshold = aem_threshold, coord = None,
-                            c_above_thres = flag_thresh_c,
-                            aemsrc = aem_src,aemregion = aem_reg2,
-                            aem_value_type = aem_value_type,
-                            gwd_gdf = gwd_gdf,
-                            sagbi = sagbi_unmod)
+# apmod2 = aempol(cmax_c = cmax_c,c_threshold = MCL,gwpa = gwpa, 
+#                             aemlyrlim = aem_lyr_lim, file_loc_interpolated = aem_fil_loc2, 
+#                             file_aem_interpolated = interpolated_aem_file2,
+#                             resistivity_threshold = aem_threshold, coord = None,
+#                             c_above_thres = flag_thresh_c,
+#                             aemsrc = aem_src,aemregion = aem_reg2,
+#                             aem_value_type = aem_value_type,
+#                             gwd_gdf = gwd_gdf,
+#                             sagbi = sagbi_unmod)
 
-modelsel = apmod
 #%%
-apmod.get_scatter_aem_polut(gwpaflag = 'All',datareg2 = apmod2, yaxis_lim = 1000) # datareg2 = None with plot only one region
-#%%
-# apmod.get_sagbi_at_wqnodes()
+apmod.get_scatter_aem_polut(gwpaflag = 'All',datareg2 = None, yaxis_lim = 1000) # datareg2 = None with plot only one region
 
 #%%
 # # Exporting water quality data to shapefile to be used for other purpose (such as land use extraction using GEE)
@@ -178,25 +184,24 @@ apmod.get_scatter_aem_polut(gwpaflag = 'All',datareg2 = apmod2, yaxis_lim = 1000
 
 #%%
 apmod.get_aem_conductivity_plot(reg = cv, conductivity_max_lim = .18)
-apmod2.get_aem_conductivity_plot(reg = cv, conductivity_max_lim = .18)
+# apmod2.get_aem_conductivity_plot(reg = cv, conductivity_max_lim = .18)
 
 #%%
 # apmod.get_aem_conductivity_plot_tworegions(apmod2, reg=cv,conductivity_max_lim = .035,
 #                                         vmax_in= .11) #0.18
 
 #%%
-dp.plt_domain(cmax_c, mcl = MCL, region = modelsel.get_aem_mask(), cafo_shp = None, 
+dp.plt_domain(cmax_c, mcl = MCL, region = apmod.get_aem_mask(), cafo_shp = None, 
             gwpa = None, aem = None, well = None, welltype= None, polut_factor=.05)
 
 #%%
 apmod.get_aem_riskscore_plot(reg = apmod.get_aem_mask(),risk_interval =.1)
 
 #%%
-apmod2.get_aem_values().Resistivity.describe()
-pd.concat([apmod.get_aem_values().Resistivity, apmod2.get_aem_values().Resistivity]).describe()
+apmod.get_aem_values().Resistivity.describe()
 #%%
 # t-test to check if data dat are statisticall different
-t_check=stats.ttest_ind(modelsel.aem_cmax_gwpa_out.VALUE,modelsel.aem_cmax_gwpa_in.VALUE)
+t_check=stats.ttest_ind(apmod.aem_cmax_gwpa_out.VALUE,apmod.aem_cmax_gwpa_in.VALUE)
 t_check
 alpha=0.05
 if(t_check[1]<alpha):
@@ -212,7 +217,7 @@ apmod.aem_cmax_gwpa_out.Resistivity.describe()
 cmax_c.describe()
 # %%
 # separate nitrate data with concentration above 10 mg/L, then get statistics of the AEM values
-cmax_c_mclup = modelsel.aem_cmax_gwpa_out[modelsel.aem_cmax_gwpa_out['VALUE']>=10]
+cmax_c_mclup = apmod.aem_cmax_gwpa_out[apmod.aem_cmax_gwpa_out['VALUE']>=10]
 cmax_c_mclup.Resistivity.describe()
 # %%
 
@@ -224,12 +229,12 @@ cmax_c_mclup.Resistivity.describe()
 apmod.get_scatter_aem_polut_w_gwdepth(yaxis_lim = 500, xaxis_lim = .3,p_size = .2)
 
 # Scatter plot aem vs nitrate, with color of sagbi values at wq nodes
-apmod.get_scatter_aem_polut_w_sagbi(datareg2 = apmod2, sagbi_var = 'sagbi',
+apmod.get_scatter_aem_polut_w_sagbi(datareg2 = None, sagbi_var = 'sagbi',
                                     sagbi_rating_min = 0, sagbi_rating_max = 100,
                                     yaxis_lim= 400,xaxis_lim=.3)
 #%%
 # Scatter plot of aem vs sagbi at wq node
-apmod.get_scatter_aem_vs_sagbi(datareg2 = apmod2, sagbi_var = 'sagbi')
+apmod.get_scatter_aem_vs_sagbi(datareg2 = None, sagbi_var = 'sagbi')
 
 #=====================================================================================
 #====================== Well buffer create and extract data at buffers================
@@ -240,11 +245,11 @@ apmod.get_scatter_sagbi_polut_in_buffer(ylim_sel = 1000)
 
 #%%
 # aem vs sagbi
-apmod.get_scatter_sagbi_aem_in_buffer(datareg2 = apmod2)
+apmod.get_scatter_sagbi_aem_in_buffer(datareg2 = None)
 
 #%%
 # aem vs polut concentration
-apmod.get_scatter_aem_polut_in_bufferzone(datareg2 = apmod2, yaxis_lim = None, 
+apmod.get_scatter_aem_polut_in_bufferzone(datareg2 = None, yaxis_lim = None, 
                                             xaxis_lim = None)
 
 
@@ -254,36 +259,45 @@ apmod.get_scatter_aem_polut_in_bufferzone(datareg2 = apmod2, yaxis_lim = None,
 #%%
 # plot cafo locations
 dp.plt_domain(cafo_dts_gdf, mcl = None , region = cv, cafo_shp = None, gwpa = None, aem = None, well = None, welltype = None, polut_factor = None, c_name = 'Cafos dated')
+#%%
+apmod.create_well_buffer()
+# apmod.get_cafopop_vs_polut(cafo_dts_gdf = cafo_dts_gdf,xlim_min=10)
+# apmod.get_conductivity_vs_cafopop(cafo_dts_gdf = cafo_dts_gdf,ylim_min=10)
+
+
+#=====================================================================================
+#============================== Land use within well buffer ==========================
+#=====================================================================================
+
+#%%
+file_list=os.listdir(config.data_processed / "CDL/cdl_at_buffers")
+lu_loc = config.data_processed / "CDL/cdl_at_buffers/"
+
+with open(lu_loc / file_list[0],'rb') as f:
+    crp_load = pickle.load(f)
+
+for x in range(1,len(file_list)):
+    with open(lu_loc / f"{file_list[x]}",'rb') as f:
+        k = pickle.load(f)
+    
+    crp_load = crp_load + k
 
 
 #%%
-aem_wq_buff_aemmean_gdf = gpd.GeoDataFrame(apmod.aem_wq_buff_aemmean, geometry='geometry')
-aem_wq_buff_aemmean_gdf2 = gpd.overlay(cafo_dts_gdf,aem_wq_buff_aemmean_gdf, how='intersection')
-aem_wq_buff_aemmean_cafopopsum_gdf2 = aem_wq_buff_aemmean_gdf2.groupby(["WELL ID"]).Cafo_Population.sum().reset_index()
-aem_wq_buff_aemmean_cafopopsum_gdf2 = aem_wq_buff_aemmean_cafopopsum_gdf2.merge(apmod.aem_wq_buff_aemmean, on='WELL ID', how='left')
-
+ag_area = dp.get_agarea_in_wellbuffer(crp_load,tot_well_use = len(crp_load),
+                                    strt_yr_lu = 2008,end_yr_lu = 2020)
 
 #%%
-fig, ax = plt.subplots(figsize=(7, 7))
-plt.scatter(aem_wq_buff_aemmean_cafopopsum_gdf2['Cafo_Population'],aem_wq_buff_aemmean_cafopopsum_gdf2['VALUE'],
-            color = 'red', s = 1)
-# plt.ylim([0,1000])
-# plt.xlim([0,0.9])
-plt.xlabel('CAFO Polulation', fontsize=20)
-plt.ylabel('Nitrate concentration [mg/l]', fontsize=20)
-plt.tick_params(axis='both', which='major', labelsize=17)
-plt.show()
+apmod.get_agarea_vs_polut(agarea = ag_area,lu_yr = 2019, ylim_max  =500)
 
-#%%
-fig, ax = plt.subplots(figsize=(7, 7))
-plt.scatter(aem_wq_buff_aemmean_cafopopsum_gdf2['Resistivity'],aem_wq_buff_aemmean_cafopopsum_gdf2['Cafo_Population'],
-            color = 'red', s = 1)
-# plt.ylim([0,1000])
-# plt.xlim([0,0.9])
-plt.xlabel('Conductivity', fontsize=20)
-plt.ylabel('CAFO Polulation', fontsize=20)
-plt.tick_params(axis='both', which='major', labelsize=17)
-plt.show()
+
+em_lu = agarea.merge(self.cmax_c, on='WELL ID', how='left')
+
+
+
+
+
+
 
 
 
@@ -312,3 +326,5 @@ modelsel.get_scatter_aem_polut_w_wellproperty(yaxis_lim = 50, wellproperty = 'GM
 # aem_interp = np.load(file_aem_interpolated / 'min_resistivity_upto_layer_8.npy')
 # aem_interp_X = np.load(file_aem_interpolated / 'X_for_resistivity_data.npy')
 # aem_interp_Y = np.load(file_aem_interpolated / 'Y_for_resistivity_data.npy')
+
+# %%

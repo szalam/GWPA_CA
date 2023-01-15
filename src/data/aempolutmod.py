@@ -8,19 +8,28 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import warnings
 
+
 sys.path.insert(0,'src')
 import config
 
 
 class aempol():
 
-    def __init__(self,cmax_c,c_threshold,gwpa,aemlyrlim,file_loc_interpolated, file_aem_interpolated, resistivity_threshold, coord = None, c_above_thres = 1,aemsrc = "DWR",aemregion = 5, aem_value_type = 'conductivity', gwd_gdf = None, sagbi = None,rad_mile = 2):
+    def __init__(self,gdfinput,cmax_c,c_threshold,gwpa,aemlyrlim,file_loc_interpolated, file_aem_interpolated, resistivity_threshold, coord = None, c_above_thres = 1,aemsrc = "DWR",aemregion = 5, aem_value_type = 'conductivity', gwd_gdf = None, sagbi = None,rad_mile = 2):
 
         """
         Arg:
+        gdfinput                : geodataframe of aem data
+        cmax_c                  : polution data with single value for each station. this single value is mean/max/min at each well
+        c_threshold             : threshold above which water quality data is analyzed. If interest is above MCL, then select MCL (such as 10 for NO3)
+        gwpa                    : groundwater protection area gdf
+        aemlyrlim               : leayer number upto which aem data average is calculated. For instance DWR data it is 9 for depth upto ~30m
+        file_loc_interpolated   : file location of spatially interpolated aem files
+        file_aem_interpolated   : spatially interpolated file name
+        resistivity_threshold   : resistivity threshold value. It is optional and only used when need to plot aem values above a threshold
         rad_mile: radius of well buffer. Default 2
         """
-
+        self.gdfinput = gdfinput
         self.cmax_c = cmax_c
         self.threshold = c_threshold
         self.gwpa = gwpa
@@ -43,34 +52,8 @@ class aempol():
         Get AEM resistivity values as geodataframe. Though the column name for AEM value is referred as
         Resistivity thoughout the model, it will indicate conductivity if the imported data is conductivity. 
         """
-        aem_interp = np.load(self.file_loc_interpolated / f'{self.file_aem_interpolated}')
-        if self.aemsrc == 'DWR':
-            aem_interp_X = np.load(self.file_loc_interpolated / f'X_region{self.aemregion}.npy')
-            aem_interp_Y = np.load(self.file_loc_interpolated / f'Y_region{self.aemregion}.npy')
-        if self.aemsrc == 'ENVGP':
-            aem_interp_X = np.load(self.file_loc_interpolated / f'X.npy')
-            aem_interp_Y = np.load(self.file_loc_interpolated / f'Y.npy')
 
-        arr = aem_interp
-        # shp = arr.shape
-        r = aem_interp_X
-        c = aem_interp_Y
-        df_res = pd.DataFrame(np.c_[r.ravel(), c.ravel(), arr.ravel()], \
-                                        columns=((['x','y','Resistivity'])))
-        
-        # converting aem data to geodataframe
-        gdfres = gpd.GeoDataFrame(
-            df_res, geometry=gpd.points_from_xy(df_res.x, df_res.y))
-        
-        # Convert aem data coordinate to lat lon
-        if self.aemsrc == 'DWR':
-            gdfres = gdfres.set_crs(epsg='3310')
-        if self.aemsrc == 'ENVGP':
-            gdfres = gdfres.set_crs(epsg='32611')
-
-        gdfres.to_crs(epsg='4326', inplace=True)
-
-        self.gdfres = gdfres
+        self.gdfres = self.gdfinput
 
         return self.gdfres
 
@@ -229,7 +212,7 @@ class aempol():
             reg2_in, reg2_out = datareg2.get_aem_at_wqnodes_inout_gwpa()
             dfall_in = pd.concat([self.aem_cmax_gwpa_in, reg2_in])
             dfall_out = pd.concat([self.aem_cmax_gwpa_out, reg2_out])
-            dfall_all = datareg2.get_aem_at_wqnodes()
+            dfall_all = pd.concat([self.get_aem_at_wqnodes(),datareg2.get_aem_at_wqnodes()])
 
         if datareg2 is None:
             dfall_in = self.aem_cmax_gwpa_in
@@ -450,9 +433,12 @@ class aempol():
         regbound: aem data boundary such as 'cv' for central valley
         datareg2: region 2 data
         """
-        
+        self.get_aem_values()
         if datareg2 is not None:
             aemdata = self.get_combined_aem_two_regions(datareg2)
+        
+        if datareg2 is None:
+            aemdata = self.gdfres.copy()
         
         aem_wq_buff = gpd.overlay(aemdata,self.wqnodes_2m_gpd, how='intersection')
         aem_wq_buff_aemmean = aem_wq_buff.groupby(["WELL ID"]).Resistivity.mean().reset_index()
@@ -600,7 +586,7 @@ class aempol():
             datareg2.get_sagbi_at_wqnodes()
             aemres_sagbi = pd.concat([self.sagbi_cmax, datareg2.sagbi_cmax])
         if datareg2 is None:
-            aemres_sagbi = self.self.sagbi_cmax.copy()
+            aemres_sagbi = self.sagbi_cmax.copy()
 
         if sagbi_rating_min is not None:
             aemres_sagbi = aemres_sagbi[aemres_sagbi.sagbi>=sagbi_rating_min]
@@ -628,7 +614,7 @@ class aempol():
             plt.xlim([0, xaxis_lim])
 
         if yaxis_lim is None:
-            plt.ylim([0,self.aemres_sagbi.VALUE.max()])
+            plt.ylim([0,aemres_sagbi.VALUE.max()])
         else:
             plt.ylim([0,yaxis_lim])
 
@@ -890,5 +876,92 @@ class aempol():
             plt.xlim([0, xaxis_lim])
         if yaxis_lim is not None:
             plt.ylim([0,yaxis_lim])
+
+        plt.show()
+
+
+    def get_cafo_in_well_buffer(self, cafo_dts_gdf, datareg2 = None):
+        """
+        Get cafo population inside well buffer. Retrun geodataframe containing mean
+        AEM value, pollution value, and CAFO total population in the buffer.
+
+        Arg:
+        cafo_dts_gdf: CAFO data as geodataframe
+        datareg2: If there is another region of interest. Default is None
+        """
+
+        self.get_aem_mean_in_well_buffer(datareg2 = datareg2)
+        aemmean_buff_gsries = gpd.GeoDataFrame(self.aem_wq_buff_aemmean, geometry='geometry')
+        aemmean_buff_cafo_intersect = gpd.overlay(cafo_dts_gdf,aemmean_buff_gsries, how='intersection')
+        gdf_cafopop_in_buff = aemmean_buff_cafo_intersect.groupby(["WELL ID"]).Cafo_Population.sum().reset_index()
+        aembuf_cafopop_wqval = gdf_cafopop_in_buff.merge(self.aem_wq_buff_aemmean, on='WELL ID', how='left')
+
+        self.aembuf_cafopop_wqval = aembuf_cafopop_wqval
+
+        return self.aembuf_cafopop_wqval
+
+    def get_cafopop_vs_polut(self,cafo_dts_gdf, xlim_min = None):
+        """
+        Plot cafo population vs polution
+        """
+
+        self.get_cafo_in_well_buffer(cafo_dts_gdf=cafo_dts_gdf)
+        fig, ax = plt.subplots(figsize=(7, 7))
+        plt.scatter(self.aembuf_cafopop_wqval['Cafo_Population'],self.aembuf_cafopop_wqval['VALUE'],
+                    color = 'red', s = 1)
+        # plt.ylim([0,1000])
+
+        if xlim_min is None:
+            plt.xlim([0,self.aembuf_cafopop_wqval['Cafo_Population'].max()])
+        if xlim_min is not None:
+            plt.xlim([xlim_min,self.aembuf_cafopop_wqval['Cafo_Population'].max()])
+
+        plt.xlabel('CAFO Polulation', fontsize=20)
+        plt.ylabel('Nitrate concentration [mg/l]', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=17)
+        plt.show()
+    
+    def get_conductivity_vs_cafopop(self,cafo_dts_gdf,ylim_min=None):
+        """
+        Plot cafo population with conductivity
+        """
+        self.get_cafo_in_well_buffer(cafo_dts_gdf=cafo_dts_gdf)
+
+        fig, ax = plt.subplots(figsize=(7, 7))
+        plt.scatter(self.aembuf_cafopop_wqval['Resistivity'],self.aembuf_cafopop_wqval['Cafo_Population'],
+                    color = 'red', s = 1)
+        # plt.ylim([0,1000])
+        if ylim_min is None:
+            plt.ylim([0,self.aembuf_cafopop_wqval['Cafo_Population'].max()])
+        if ylim_min is not None:
+            plt.ylim([ylim_min,self.aembuf_cafopop_wqval['Cafo_Population'].max()])
+        # plt.xlim([0,0.9])
+        plt.xlabel('Conductivity', fontsize=20)
+        plt.ylabel('CAFO Polulation', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=17)
+        plt.show()
+
+    def get_agarea_vs_polut(self,agarea, lu_yr = 2018, datareg2 = None, ylim_max = None):
+        """
+        Plot cafo population vs polution
+        """
+        # self.create_well_buffer()
+        # self.get_aem_mean_in_well_buffer(datareg2 = datareg2)
+
+        aem_lu = agarea.merge(self.cmax_c, on='WELL ID', how='left')
+
+
+        fig, ax = plt.subplots(figsize=(7, 7))
+        plt.scatter(aem_lu[lu_yr],aem_lu['VALUE'],
+                    color = 'red', s = 1)
+
+        if ylim_max is None:
+            plt.ylim([0,aem_lu['VALUE'].max()])
+        if ylim_max is not None:
+            plt.ylim([0,ylim_max])
+            
+        plt.xlabel(f'Agricultural area inside buffer', fontsize=20)
+        plt.ylabel('Nitrate concentration [mg/l]', fontsize=20)
+        plt.tick_params(axis='both', which='major', labelsize=17)
 
         plt.show()
