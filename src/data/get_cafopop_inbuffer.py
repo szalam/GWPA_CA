@@ -58,6 +58,9 @@ gdf_wellbuffer = gdf_wellbuffer[['well_id', 'lat', 'lon', 'geometry']]
 wellbuff_cafo_intersect = gpd.overlay(cafo_dts_gdf, gdf_wellbuffer,how='intersection')
 gdf_cafopop_in_buff = wellbuff_cafo_intersect.groupby(["well_id"]).Cafo_Population.sum().reset_index()
 
+# Assign column names to the variables 'well_id' and 'CAFO_population'
+gdf_cafopop_in_buff.columns = ['well_id', f'CAFO_population_{rad_buffer}miles']
+
 
 # Export CSV with cafo population in well buffer
 gdf_cafopop_in_buff.to_csv(config.data_processed / f"cafo_pop_wellbuffer/Cafopop_wellsrc_{well_src}_rad_{rad_buffer}mile.csv")

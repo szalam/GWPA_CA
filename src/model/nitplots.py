@@ -56,3 +56,15 @@ mod.get_scatter_aem_polut(xcolm_name='mean_concentration_2000-2005', ycolm_name=
         yaxis_lim = 500, xaxis_lim = 500, YlabelC ='Mean Nitrate C.[2010-2022]', XlabelC ='Mean Nitrate C.[2000-2005]' ,
         yunitylabel =' ', xunitylabel =' ')
 # %%
+# %%
+mod.get_scatter_aem_polut(xcolm_name='Average_ag_area', ycolm_name='mean_nitrate', 
+        yaxis_lim = 2000, xaxis_lim = None, YlabelC ='Mean Nitrate C.', XlabelC ='Ag area' ,
+        yunitylabel ='[mg/l]', xunitylabel =' ')
+# 
+# %%
+# %%
+mod.get_scatter_aem_polut(xcolm_name='Cafo_Population_5miles', ycolm_name='mean_nitrate', 
+        yaxis_lim = 3000, xaxis_lim = None, YlabelC ='Mean Nitrate C.', XlabelC ='CAFO Population within 5 miles ' ,
+        yunitylabel ='[mg/l]', xunitylabel =' ')
+# 
+# %%

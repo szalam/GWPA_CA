@@ -13,9 +13,12 @@ sys.path.insert(0,'src')
 import pandas as pd
 import config
 import ppfun as dp
+from scipy.stats import linregress
+from scipy import stats
+import numpy as np
 
-# file location
-file_polut = config.data_raw / "nitrate_data/UCDNitrateData.csv"
+# User input
+min_sample = 10 # minimum sample size considered for trend analysis
 
 # read data
 # read gama excel file
@@ -39,6 +42,32 @@ statistics = df.groupby("well_id").agg({
     "DATE": "count"
 }).reset_index()
 
+# Calculate the historic trend in data trend in data
+#=====================================================
+# Create a new DataFrame with the statistics for each well
+trend_df = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
+
+for well_id, group in df.groupby('well_id'):
+    if len(group) < min_sample:
+        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0}, ignore_index=True)
+    else:
+        group = group.sort_values(by='DATE')
+        x = group['DATE'].apply(lambda x: x.toordinal())
+        y = group['RESULT'].values
+        slope, intercept, r_value, p_value, std_err = linregress(x, y)
+        if p_value < 0.05:
+            change_per_year = slope*365
+            if(slope>0):
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year}, ignore_index=True)
+            elif(slope<0):
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year}, ignore_index=True)
+        else:
+            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0}, ignore_index=True)
+
+
+# positive_df = trend_df.query('trend == "positive"')
+# negative_df = trend_df.query('trend == "negative"')
+
 # Rename the columns in the new DataFrame
 statistics.columns = ["well_id", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count"]
 
@@ -50,6 +79,7 @@ periods = {
     "2010-2015": (2010, 2015),
     "2005-2010": (2005, 2010),
     "2000-2005": (2000, 2005),
+    "2000-2010": (2000, 2005),
     "2000-2022": (2000, 2022),
     "2010-2022": (2010, 2022),
     "2007-2009": (2007, 2009),
@@ -85,7 +115,7 @@ for period, (start, end) in periods.items():
 
 
 # Merge the statistics DataFrame with the original DataFrame
-result = pd.merge(df, statistics, on="well_id")
+result = pd.merge(df, statistics, on="well_id") #.merge(trend_df, on="well_id")
 
 # Extract the columns we want to keep
 result = result[["well_id", "APPROXIMATE LATITUDE", "APPROXIMATE LONGITUDE", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count", *[f"mean_concentration_{period}" for period in periods.keys()]]]
@@ -97,6 +127,9 @@ grouped = grouped.reset_index()
 
 # Rounding to three decimals
 grouped = grouped.round(3)
+
+# Merging trend data
+grouped = pd.merge(grouped, trend_df, on="well_id")
 
 # Export the result DataFrame to a CSV file
 # result.to_csv(config.data_processed / f"gama_wellids_largestobs_totst_{str(largest_wells_no)}.csv")

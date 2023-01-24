@@ -19,14 +19,14 @@ file_aem = config.data_processed / 'AEM'
 
 # Read region boundary
 cv = dp.get_region(config.shapefile_dir   / "cv.shp")
-#%%
+
 # sagbi_unmod = dp.get_region(config.data_raw / 'SAGBI/sagbi_unmod/sagbi_unmod.shp')
 sagbi_unmod = gpd.read_file(config.data_raw / 'SAGBI/sagbi_unmod/sagbi_unmod.json')
 
-#%%
+
 #==================== User Input requred ==========================================
 well_src       = 'UCD'          # options: UCD, GAMA
-rad_buffer     = 5              # well buffer radius in miles
+rad_buffer     = 2              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 

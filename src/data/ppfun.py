@@ -96,6 +96,39 @@ def get_polut_for_gwbasin(c_df, gw_basin = "SAN JOAQUIN VALLEY - KAWEAH (5-22.11
 
     return c
 
+# Read the raw nitrate data
+def get_raw_nitrate_data(data_source = 'GAMA'):
+    if data_source == 'GAMA':
+        # read data
+        # read gama excel file
+        df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+        df.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+        
+        # Convert the date column to a datetime object
+        df["date"] = pd.to_datetime(df["DATE"])
+    if data_source == 'UCD':
+        # file location
+        file_polut = config.data_raw / "nitrate_data/UCDNitrateData.csv"
+        # read data
+        df = get_polut_df(file_sel = file_polut)
+        df = df.rename(columns={'WELL ID': 'well_id'}) 
+        # Use the str.replace() method to remove 'NO3_' from all values in the 'well_id' column
+        df['well_id'] = df['well_id'].str.replace('NO3_', '')
+        # Convert the date column to a datetime object
+        df["date"] = pd.to_datetime(df["DATE"])
+
+    return df
+
+# Plot time series of nitrate
+def get_plot_time_series_well(df, well_id, xvar = 'DATE', yvar = 'RESULT'):
+    well_data = df[df['well_id'] == well_id]
+    well_data = well_data.sort_values(by=xvar)
+    plt.plot(well_data[f'{xvar}'], well_data[f'{yvar}'])
+    plt.xlabel('Date')
+    plt.ylabel('Nitrate')
+    plt.title(f'Well: {well_id}')
+    plt.show()
+
 # %%
 def get_polut_for_county(c_df, county = "KERN"):
     """
@@ -421,7 +454,7 @@ def get_well_buffer_shape(df,rad_buffer = 2):
     gdf_buffer = gdf_buffer.to_crs({'init': 'epsg:4326'})
 
     return gdf_buffer
-    
+
 
 def get_luids():
 
