@@ -15,12 +15,16 @@ from tqdm import tqdm
 import ppfun as dp
 
 from scipy.stats import ttest_ind
-from visualize import vismod
+# from visualize import vismod
 
 # Read dataset
 df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 df = df[df.well_data_source == 'UCD']
-df = df[['well_id','Conductivity','mean_nitrate','area_wt_sagbi', 'Cafo_Population_5miles','Average_ag_area','change_per_year','total_ag_2010','APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE']]
+
+
+df = df[['well_id','Conductivity','measurement_count','mean_nitrate','area_wt_sagbi', 'Cafo_Population_5miles','Average_ag_area','change_per_year','total_ag_2010','APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE','city_inside_outside']]
+df = df[df.measurement_count > 4]
+# df = df[df.city_inside_outside == 'outside_city']
 # df = df.head(1000)
 
 #get the unique well ids
@@ -130,7 +134,7 @@ print(cor_pos_test1)
 len(high_corr_test1)
 #%%
 # Plot scatter of CAFO population vs nitrate concentration
-scatter_twovars(df, selected_well_ids = not_diff[high_corr_test1[49]], xvar = "Cafo_Population_5miles", yvar ="mean_nitrate",
+scatter_twovars(df, selected_well_ids = not_diff[high_corr_test1[33]], xvar = "Cafo_Population_5miles", yvar ="mean_nitrate",
                     xlab = "Animal population", ylab = "Nitrate concentration")
 #%%
 cond_vals = stat_of_notdiff_wells(df, not_diff = not_diff, high_corr = high_corr_test1, var_stat='Conductivity')

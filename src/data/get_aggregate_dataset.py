@@ -11,14 +11,16 @@ csv_files_ucd = [f'{config.data_processed}/well_stats/ucdnitrate_stats.csv',
             f'{config.data_processed}/sagbi_values/SAGBI_wellsrc_UCD_rad_2mile.csv', 
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_UCD_rad_2mile.csv', 
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_UCD_rad_5mile.csv', 
-            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile.csv']
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_layerwide.csv']
 
 csv_files_gama = [f'{config.data_processed}/well_stats/gamanitrate_stats.csv', 
             f'{config.data_processed}/gwdepth_wellbuff/GWDepth_wellsrc_GAMA_rad_2mile.csv', 
             f'{config.data_processed}/sagbi_values/SAGBI_wellsrc_GAMA_rad_2mile.csv', 
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_GAMA_rad_2mile.csv',
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_GAMA_rad_5mile.csv', 
-            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile.csv']
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_layerwide.csv']
 
 def get_combined_dataset(csv_files):
     # read the first csv file
@@ -54,8 +56,7 @@ df_gama['well_data_source'] = 'GAMA'
 # Combine two dataset
 df = pd.concat([df_ucd, df_gama], axis=0)
 
-
-df = df[['well_id', 'APPROXIMATE LATITUDE',
+columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'APPROXIMATE LONGITUDE', 'mean_nitrate', 'median_nitrate',
        'max_nitrate', 'min_nitrate', 'measurement_count',
        'mean_concentration_2015-2022', 'mean_concentration_2010-2015',
@@ -64,8 +65,27 @@ df = df[['well_id', 'APPROXIMATE LATITUDE',
        'mean_concentration_2007-2009', 'mean_concentration_2012-2015',
        'mean_concentration_2019-2021', 'mean_concentration_2017-2018',
        'trend','change_per_year', 'start_date', 'end_date', 
-       'gwdep', 'area_wt_sagbi',
-       'Cafo_Population_2miles','Cafo_Population_5miles', 'Conductivity','well_data_source']]
+       'gwdep', 'area_wt_sagbi', 'total_obs', 'well_type',
+       'Cafo_Population_2miles','Cafo_Population_5miles', 'Conductivity','well_data_source']
+
+for i in range(1,21):
+    column_name = f'Conductivity_depthwtd_lyr{i}'
+    columns_to_keep.append(column_name)
+
+df = df[columns_to_keep]
+#%%
+
+# df = df[['well_id', 'APPROXIMATE LATITUDE',
+#        'APPROXIMATE LONGITUDE', 'mean_nitrate', 'median_nitrate',
+#        'max_nitrate', 'min_nitrate', 'measurement_count',
+#        'mean_concentration_2015-2022', 'mean_concentration_2010-2015',
+#        'mean_concentration_2005-2010', 'mean_concentration_2000-2005',
+#        'mean_concentration_2000-2022', 'mean_concentration_2010-2022',
+#        'mean_concentration_2007-2009', 'mean_concentration_2012-2015',
+#        'mean_concentration_2019-2021', 'mean_concentration_2017-2018',
+#        'trend','change_per_year', 'start_date', 'end_date', 
+#        'gwdep', 'area_wt_sagbi',
+#        'Cafo_Population_2miles','Cafo_Population_5miles', 'Conductivity','well_data_source']]
 
 
 #%%
@@ -151,6 +171,12 @@ df_cdl_all = df_cdl_all.fillna(0)
 
 # merge the dataframe with the current csv file based on well_id
 df = pd.merge(df, df_cdl_all, on='well_id', how='outer')
+
+# Merge city in/out information
+df_city_inout = pd.read_csv(config.data_processed / "well_inout_city/well_inout_city.csv")
+#%%
+# merge the dataframe with the current csv file based on well_id
+df = pd.merge(df, df_city_inout, on='well_id', how='outer')
 
 #%%
 # Use the str.replace() method to remove 'NO3_' from all values in the 'well_id' column

@@ -14,22 +14,20 @@ import numpy as np
 # Read dataset
 df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
-
-
-#%%
-df['nitrate_increase'] = df['mean_concentration_2015-2022']- df['mean_concentration_2005-2010']
+df = df[df.measurement_count>4]
 
 #%%
-# df2 = df.drop(columns=['median_nitrate', 'max_nitrate', 
-#        'min_nitrate', 'measurement_count','mean_concentration_2015-2022', 
-#        'mean_concentration_2010-2015','mean_concentration_2005-2010', 
-#        'mean_concentration_2000-2005', 'mean_concentration_2000-2022', 
-#        'mean_concentration_2010-2022', 'mean_concentration_2007-2009', 
-#        'mean_concentration_2012-2015', 'mean_concentration_2019-2021', 
-#        'mean_concentration_2017-2018',
-#        'APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE','nitrate_increase','Cafo_Population'])
+# df['nitrate_increase'] = df['mean_concentration_2015-2022']- df['mean_concentration_2005-2010']
 
-df2 = df[['mean_nitrate','Conductivity','area_wt_sagbi','gwdep','Average_ag_area','Cafo_Population_5miles']]
+#%%
+columns_to_keep = ['mean_nitrate','Conductivity','area_wt_sagbi','gwdep','Average_ag_area'] # ,'Cafo_Population_5miles'
+
+for i in range(1,21):
+    column_name = f'Conductivity_depthwtd_lyr{i}'
+    columns_to_keep.append(column_name)
+
+df2 = df[columns_to_keep]
+# df2 = df[['mean_nitrate','Conductivity','area_wt_sagbi','gwdep','Average_ag_area','Cafo_Population_5miles']]
 #%%
 # # select rows where the values in the 'total_ag_2010' column are greater than zero
 # df2 = df2.query('total_ag_2010 > 0')

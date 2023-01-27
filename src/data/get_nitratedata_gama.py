@@ -23,7 +23,7 @@ min_sample = 10 # minimum sample size considered for trend analysis
 # read data
 # read gama excel file
 df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
-df.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+df.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
 df['DATE']= pd.to_datetime(df['DATE'])
 
 
@@ -49,7 +49,7 @@ trend_df = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
 
 for well_id, group in df.groupby('well_id'):
     if len(group) < min_sample:
-        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0}, ignore_index=True)
+        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
     else:
         group = group.sort_values(by='DATE')
         x = group['DATE'].apply(lambda x: x.toordinal())
@@ -58,11 +58,11 @@ for well_id, group in df.groupby('well_id'):
         if p_value < 0.05:
             change_per_year = slope*365
             if(slope>0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year}, ignore_index=True)
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
             elif(slope<0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year}, ignore_index=True)
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
         else:
-            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0}, ignore_index=True)
+            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
 
 
 # positive_df = trend_df.query('trend == "positive"')
@@ -116,9 +116,10 @@ for period, (start, end) in periods.items():
 
 # Merge the statistics DataFrame with the original DataFrame
 result = pd.merge(df, statistics, on="well_id") #.merge(trend_df, on="well_id")
+well_type_tmp = result[['well_id','well_type']]
 
 # Extract the columns we want to keep
-result = result[["well_id", "APPROXIMATE LATITUDE", "APPROXIMATE LONGITUDE", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count", *[f"mean_concentration_{period}" for period in periods.keys()]]]
+result = result[["well_id", "APPROXIMATE LATITUDE", "APPROXIMATE LONGITUDE", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count" ,*[f"mean_concentration_{period}" for period in periods.keys()]]]
 
 # Group the data by well_id
 grouped = result.groupby("well_id").mean()
@@ -130,6 +131,7 @@ grouped = grouped.round(3)
 
 # Merging trend data
 grouped = pd.merge(grouped, trend_df, on="well_id")
+grouped = pd.merge(grouped, well_type_tmp, on="well_id")
 
 # Export the result DataFrame to a CSV file
 # result.to_csv(config.data_processed / f"gama_wellids_largestobs_totst_{str(largest_wells_no)}.csv")

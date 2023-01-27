@@ -25,7 +25,7 @@ file_polut = config.data_raw / "nitrate_data/UCDNitrateData.csv"
 
 # read data
 df = dp.get_polut_df(file_sel = file_polut)
-df = df.rename(columns={'WELL ID': 'well_id'}) 
+df = df.rename(columns={'WELL ID': 'well_id','DATASET_CAT': 'well_type'}) 
 
 # Convert the date column to a datetime object
 df["date"] = pd.to_datetime(df["DATE"])
@@ -49,7 +49,7 @@ trend_df = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
 
 for well_id, group in df.groupby('well_id'):
     if len(group) < min_sample:
-        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0}, ignore_index=True)
+        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
     else:
         group = group.sort_values(by='DATE')
         x = group['DATE'].apply(lambda x: x.toordinal())
@@ -58,11 +58,11 @@ for well_id, group in df.groupby('well_id'):
         if p_value < 0.05:
             change_per_year = slope*365
             if(slope>0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year}, ignore_index=True)
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
             elif(slope<0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year}, ignore_index=True)
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
         else:
-            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0}, ignore_index=True)
+            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
 
 
 # positive_df = trend_df.query('trend == "positive"')
@@ -118,9 +118,10 @@ for period, (start, end) in periods.items():
 
 # Merge the statistics DataFrame with the original DataFrame
 result = pd.merge(df, statistics, on="well_id") #.merge(trend_df, on="well_id")
+well_type_tmp = result[['well_id','well_type']]
 
 # Extract the columns we want to keep
-result = result[["well_id", "APPROXIMATE LATITUDE", "APPROXIMATE LONGITUDE", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count", *[f"mean_concentration_{period}" for period in periods.keys()]]]
+result = result[["well_id", "APPROXIMATE LATITUDE", "APPROXIMATE LONGITUDE", "mean_nitrate", "median_nitrate", "max_nitrate", "min_nitrate", "measurement_count" ,*[f"mean_concentration_{period}" for period in periods.keys()]]]
 
 # Group the data by well_id
 grouped = result.groupby("well_id").mean()
@@ -132,6 +133,7 @@ grouped = grouped.round(3)
 
 # Merging trend data
 grouped = pd.merge(grouped, trend_df, on="well_id")
+grouped = pd.merge(grouped, well_type_tmp, on="well_id")
 
 # Export the result DataFrame to a CSV file
 # result.to_csv(config.data_processed / f"gama_wellids_largestobs_totst_{str(largest_wells_no)}.csv")

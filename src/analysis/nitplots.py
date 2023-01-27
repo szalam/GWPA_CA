@@ -1,10 +1,12 @@
 #%%
 import sys
 sys.path.insert(0,'src')
+sys.path.insert(0,'src/data')
 
 import pandas as pd
 import config
 import matplotlib.pyplot as plt 
+import ppfun as dp
 
 from visualize import vismod
 
@@ -67,4 +69,25 @@ mod.get_scatter_aem_polut(xcolm_name='Cafo_Population_5miles', ycolm_name='mean_
         yaxis_lim = 3000, xaxis_lim = None, YlabelC ='Mean Nitrate C.', XlabelC ='CAFO Population within 5 miles ' ,
         yunitylabel ='[mg/l]', xunitylabel =' ')
 # 
+# %%
+well_src = 'GAMA'
+#=========================== Import water quality data ==========================
+if well_src == 'GAMA':
+    # read gama excel file
+    df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+    df.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    df['DATE']= pd.to_datetime(df['DATE'])
+
+if well_src == 'UCD':
+    # file location
+    file_polut = config.data_raw / "nitrate_data/UCDNitrateData.csv"
+
+    # Read nitrate data
+    df = dp.get_polut_df(file_sel = file_polut)
+    df.rename(columns = {'WELL ID':'well_id'}, inplace = True)
+    
+
+
+#%%
+dp.get_plot_time_series_well(df, well_id = 'NO3_1027326', xvar = 'DATE', yvar = 'RESULT')
 # %%
