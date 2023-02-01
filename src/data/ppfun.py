@@ -129,6 +129,17 @@ def get_plot_time_series_well(df, well_id, xvar = 'DATE', yvar = 'RESULT'):
     plt.title(f'Well: {well_id}')
     plt.show()
 
+# Plot time series of nitrate in canvas when plotted many in loops
+def get_plot_time_series_well_canvas(df, well_id, xvar = 'DATE', yvar = 'RESULT', ax=None):
+    well_data = df[df['well_id'] == well_id]
+    well_data = well_data.sort_values(by=xvar)
+    if ax is None:
+        ax = plt
+    ax.plot(well_data[f'{xvar}'], well_data[f'{yvar}'])
+    ax.set_xlabel('Date')
+    ax.set_ylabel('Nitrate')
+    ax.set_title(f'Well: {well_id}')
+
 # %%
 def get_polut_for_county(c_df, county = "KERN"):
     """

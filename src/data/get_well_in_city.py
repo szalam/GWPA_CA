@@ -1,4 +1,4 @@
-#%%|
+#%%
 import sys
 sys.path.insert(0,'src')
 import pandas as pd
@@ -23,7 +23,10 @@ def get_city_well_inout(df,city):
     points_with_city["city_inside_outside"] = np.where(points_with_city["index_right"].isnull(), "outside_city", "inside_city")
     # Keep only well_id and city_inside_outside columns in points_with_city
     points_with_city = points_with_city[['well_id', 'city_inside_outside']]
-
+    
+    # Drop duplicate and keep the first one
+    points_with_city.drop_duplicates(subset = ['well_id'], keep = 'first', inplace = True) 
+    
     return points_with_city
 
 # read in city shapefile

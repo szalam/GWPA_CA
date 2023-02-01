@@ -17,9 +17,10 @@ import ppfun as dp
 from scipy.stats import ttest_ind
 # from visualize import vismod
 
+well_src = 'UCD'
 # Read dataset
 df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
-df = df[df.well_data_source == 'UCD']
+df = df[df.well_data_source == well_src]
 
 
 df = df[['well_id','Conductivity','measurement_count','mean_nitrate','area_wt_sagbi', 'Cafo_Population_5miles','Average_ag_area','change_per_year','total_ag_2010','APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE','city_inside_outside']]
@@ -89,10 +90,12 @@ for well_id in tqdm(well_ids):
     well_id_list = list(data["well_id"].unique())
 
     if not_diff:
+        if well_id_list and well_id_list not in not_diff: # removing duplicate lists
             not_diff.append(well_id_list)
     else:
         not_diff = [well_id_list]
 
+    
 #======================================================================
 # Test 1: Compare cafo population vs nitrate concentration.
 #======================================================================
@@ -134,8 +137,19 @@ print(cor_pos_test1)
 len(high_corr_test1)
 #%%
 # Plot scatter of CAFO population vs nitrate concentration
-scatter_twovars(df, selected_well_ids = not_diff[high_corr_test1[33]], xvar = "Cafo_Population_5miles", yvar ="mean_nitrate",
+scatter_twovars(df, selected_well_ids = not_diff[high_corr_test1[50]], xvar = "Cafo_Population_5miles", yvar ="mean_nitrate",
                     xlab = "Animal population", ylab = "Nitrate concentration")
+
+#%%
+# separate wells that are not different and has positive correlations
+well_var = set()
+for i in range(len(high_corr_test1)):
+  well_var.update(not_diff[high_corr_test1[i]])
+
+well_var = list(well_var)
+df_filtered = df[df['well_id'].isin(well_var)]
+
+df_filtered.to_csv(config.data_processed / 'cafo_N_positive_relation_same_conductivity/wellids_have_cafo_positive_relations.csv')
 #%%
 cond_vals = stat_of_notdiff_wells(df, not_diff = not_diff, high_corr = high_corr_test1, var_stat='Conductivity')
 plt.hist(cond_vals)

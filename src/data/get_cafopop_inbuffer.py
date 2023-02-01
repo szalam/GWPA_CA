@@ -17,6 +17,8 @@ geometry = [Point(xy) for xy in zip(cafo_dts['longitude'], cafo_dts['latitude'])
 # Create a GeoDataFrame
 crs = {'init': 'epsg:4326'} # CRS stands for Coordinate Reference System, this line specify the system
 cafo_dts_gdf = gpd.GeoDataFrame(cafo_dts, crs=crs, geometry=geometry)
+# cafo_dts_gdf.to_file(config.data_processed / 'kml' / f"CAFO_shape.shp", driver='ESRI Shapefile')
+
 
 # Read region boundary
 cv = dp.get_region(config.shapefile_dir   / "cv.shp")
