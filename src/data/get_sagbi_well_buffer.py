@@ -25,8 +25,8 @@ sagbi_unmod = gpd.read_file(config.data_raw / 'SAGBI/sagbi_unmod/sagbi_unmod.jso
 
 
 #==================== User Input requred ==========================================
-well_src       = 'UCD'          # options: UCD, GAMA
-rad_buffer     = 2              # well buffer radius in miles
+well_src       = 'GAMA'          # options: UCD, GAMA
+rad_buffer     = 5              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 
@@ -34,8 +34,12 @@ buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: crea
 #=========================== Import water quality data ==========================
 if well_src == 'GAMA':
     # read gama excel file
-    df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
-    df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    # df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+    # df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    # df['DATE']= pd.to_datetime(df['DATE'])
+    file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+    df = dp.get_polut_df(file_sel = file_polut)
+    df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
     df['DATE']= pd.to_datetime(df['DATE'])
 
 if well_src == 'UCD':

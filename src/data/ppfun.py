@@ -27,8 +27,11 @@ def get_polut_df(file_sel):
     # Read nitrate data from csv
     c = pd.read_csv(file_sel)
 
-    # convert the 'Date' column to datetime format
-    c['DATE']= pd.to_datetime(c['DATE'])
+    if "GM_SAMP_COLLECTION_DATE" in c.columns:
+        c["GM_SAMP_COLLECTION_DATE"] = pd.to_datetime(c["GM_SAMP_COLLECTION_DATE"])
+    else:
+        # convert the 'Date' column to datetime format
+        c['DATE']= pd.to_datetime(c['DATE'])
 
     return c
 
@@ -336,13 +339,13 @@ def get_aem_from_npy(file_loc_interpolated, file_aem_interpolated, aemregion, ae
         Get AEM resistivity values as geodataframe. Though the column name for AEM value is referred as
         Resistivity thoughout the model, it will indicate conductivity if the imported data is conductivity. 
         """
-        aem_interp = np.load(file_loc_interpolated / f'{file_aem_interpolated}')
+        aem_interp = np.load(file_loc_interpolated / file_aem_interpolated)
         if aemsrc == 'DWR':
             aem_interp_X = np.load(file_loc_interpolated / f'X_region{aemregion}.npy')
             aem_interp_Y = np.load(file_loc_interpolated / f'Y_region{aemregion}.npy')
         if aemsrc == 'ENVGP':
-            aem_interp_X = np.load(file_loc_interpolated / f'X.npy')
-            aem_interp_Y = np.load(file_loc_interpolated / f'Y.npy')
+            aem_interp_X = np.load(file_loc_interpolated / 'X.npy')
+            aem_interp_Y = np.load(file_loc_interpolated / 'Y.npy')
 
         arr = aem_interp
         # shp = arr.shape

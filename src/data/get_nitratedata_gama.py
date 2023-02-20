@@ -10,22 +10,24 @@
 #%%
 import sys
 sys.path.insert(0,'src')
-import pandas as pd
 import config
+import pandas as pd
+import numpy as np
+import geopandas as gpd
 import ppfun as dp
 from scipy.stats import linregress
 from scipy import stats
-import numpy as np
 
 # User input
 min_sample = 10 # minimum sample size considered for trend analysis
 
 # read data
 # read gama excel file
-df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+# df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+df = dp.get_polut_df(file_sel = file_polut)
 df.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
 df['DATE']= pd.to_datetime(df['DATE'])
-
 
 # Convert the date column to a datetime object
 df["date"] = pd.to_datetime(df["DATE"])
@@ -48,22 +50,24 @@ statistics = df.groupby("well_id").agg({
 trend_df = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
 
 for well_id, group in df.groupby('well_id'):
-    if len(group) < min_sample:
-        trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
-    else:
-        group = group.sort_values(by='DATE')
-        x = group['DATE'].apply(lambda x: x.toordinal())
-        y = group['RESULT'].values
-        slope, intercept, r_value, p_value, std_err = linregress(x, y)
-        if p_value < 0.05:
-            change_per_year = slope*365
-            if(slope>0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
-            elif(slope<0):
-                trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
+    try:
+        if len(group) < min_sample:
+            trend_df = trend_df.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
         else:
-            trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
-
+            group = group.sort_values(by='DATE')
+            x = group['DATE'].apply(lambda x: x.toordinal())
+            y = group['RESULT'].values
+            slope, intercept, r_value, p_value, std_err = linregress(x, y)
+            if p_value < 0.05:
+                change_per_year = slope*365
+                if(slope>0):
+                    trend_df = trend_df.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
+                elif(slope<0):
+                    trend_df = trend_df.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
+            else:
+                trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
+    except ValueError:
+        trend_df = trend_df.append({'well_id': well_id, 'trend': 'not_significant','change_per_year': 0, 'total_obs': len(group)}, ignore_index=True)
 
 # positive_df = trend_df.query('trend == "positive"')
 # negative_df = trend_df.query('trend == "negative"')
@@ -131,10 +135,18 @@ grouped = grouped.round(3)
 
 # Merging trend data
 grouped = pd.merge(grouped, trend_df, on="well_id")
+
+well_type_tmp = well_type_tmp.drop_duplicates(subset='well_id', keep='first')
 grouped = pd.merge(grouped, well_type_tmp, on="well_id")
 
 # Export the result DataFrame to a CSV file
 # result.to_csv(config.data_processed / f"gama_wellids_largestobs_totst_{str(largest_wells_no)}.csv")
 grouped.to_csv(config.data_processed / "well_stats/gamanitrate_stats.csv")
+
+#%%
+grouped_gpd = gpd.GeoDataFrame(grouped, geometry=gpd.points_from_xy(grouped['APPROXIMATE LONGITUDE'], grouped['APPROXIMATE LATITUDE']))
+grouped_gpd = grouped_gpd.drop(columns=['start_date', 'end_date'])
+
+grouped_gpd.to_file(config.data_processed / 'kml' / f"gama_wells_all.shp", driver='ESRI Shapefile')
 
 # %%

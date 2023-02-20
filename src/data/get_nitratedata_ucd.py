@@ -133,6 +133,8 @@ grouped = grouped.round(3)
 
 # Merging trend data
 grouped = pd.merge(grouped, trend_df, on="well_id")
+
+well_type_tmp = well_type_tmp.drop_duplicates(subset='well_id', keep='first')
 grouped = pd.merge(grouped, well_type_tmp, on="well_id")
 
 # Export the result DataFrame to a CSV file

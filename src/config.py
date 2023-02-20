@@ -9,6 +9,7 @@ data_raw = data_path / "raw"
 data_processed = data_path / "processed"
 
 data_gama = data_raw / 'GAMA/Initial_download/TOP 10 CHEMICALS'
+data_gama_all = data_raw / 'GAMA/Initial_download'
 data_aem_interp = data_processed / 'AEM'
 shapefile_dir = data_raw / "shapefile"
 

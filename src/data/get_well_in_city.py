@@ -36,8 +36,13 @@ city = gpd.read_file(config.data_raw / "shapefile/City_Boundaries/City_Boundarie
 # GAMA data
 #======================
 # read gama excel file
-df_gama = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+df_gama= dp.get_polut_df(file_sel = file_polut)
 df_gama.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+df_gama['DATE']= pd.to_datetime(df_gama['DATE'])
+
+# df_gama = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+# df_gama.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
 
 points_with_city_gama = get_city_well_inout(df_gama, city)
 #======================

@@ -23,10 +23,11 @@ from contextlib import redirect_stdout
 file_aem = config.data_processed / 'AEM'
 
 #==================== User Input requred ==========================================
+
+#==================== User Input requred ==========================================
 aem_src        = 'DWR'          # options: DWR, ENVGP
 well_src       = 'UCD'          # options: UCD, GAMA
-aem_reg        = 5              # options: 5, 4. Only applicable when aem_src = DWR
-aem_reg2       = 4              # use only if two regions are worked with
+aem_region = [4, 5, 6, 7] 
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
 rad_buffer     = 2              # well buffer radius in miles
@@ -62,36 +63,24 @@ def aem_info(file_aem, aem_src, aem_value_type, aem_reg, lyr_num):
     return aem_fil_loc, interpolated_aem_file
 
 lyr_num = 0
-
 for i in tqdm(range(20)):
+    aem_args = []
     lyr_num = lyr_num + 1
-
-    # call the function
-    aem_fil_loc1, interpolated_aem_file1 = aem_info(file_aem, aem_src, aem_value_type, aem_reg,lyr_num)
-    aem_fil_loc2, interpolated_aem_file2 = aem_info(file_aem, aem_src, aem_value_type, aem_reg2,lyr_num)
-
-
-    # Create a list of arguments for the get_aem_from_npy function
-    aem_args = [
-        {
-            'file_loc_interpolated': aem_fil_loc1, 
-            'file_aem_interpolated': interpolated_aem_file1, 
+    for lseq, aem_reg in enumerate(aem_region):
+        # call the function
+        aem_fil_loc, interpolated_aem_file = aem_info(file_aem, aem_src, aem_value_type, aem_reg,lyr_num)
+        aem_args.append({
+            'file_loc_interpolated': aem_fil_loc, 
+            'file_aem_interpolated': interpolated_aem_file, 
             'aemregion': aem_reg, 
             'aemsrc': aem_src
-        },
-        {
-            'file_loc_interpolated': aem_fil_loc2, 
-            'file_aem_interpolated': interpolated_aem_file2, 
-            'aemregion': aem_reg2, 
-            'aemsrc': aem_src
-        }
-    ]
+        })
 
-    # Use a list comprehension to apply the get_aem_from_npy function to each set of arguments
-    gdf_aem_list = [dp.get_aem_from_npy(**args) for args in aem_args]
+        # Use a list comprehension to apply the get_aem_from_npy function to each set of arguments
+        gdf_aem_list = [dp.get_aem_from_npy(**args) for args in aem_args]
 
-    # Concatenate the dataframes into one
-    gdfaem = pd.concat(gdf_aem_list)
+        # Concatenate the dataframes into one
+        gdfaem = pd.concat(gdf_aem_list)
 
     #======================== Get boundary of AEM data ========================
     # converting point resistivity data to polygon mask
@@ -138,7 +127,7 @@ for i in tqdm(range(20)):
         aem_wq_buff = gpd.overlay(aemdata, wqnodes_2m_gpd, how='intersection')
         
         # Compute the mean resistivity for each well
-        aem_wq_buff_aemmean = aem_wq_buff.groupby("well_id").Resistivity.mean().reset_index()
+        aem_wq_buff_aemmean = aem_wq_buff.groupby("well_id").Resistivity.apply(lambda x: np.nanmean(x)).reset_index(name='Resistivity')
         
         # Merge the mean resistivity data with the well buffer data
         aem_wq_buff_aemmean = aem_wq_buff_aemmean.merge(wqnodes_2m_gpd, on='well_id', how='left')

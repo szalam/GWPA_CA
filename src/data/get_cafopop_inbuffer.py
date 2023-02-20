@@ -25,8 +25,8 @@ cv = dp.get_region(config.shapefile_dir   / "cv.shp")
 
 
 #==================== User Input requred ==========================================
-well_src       = 'GAMA'          # options: UCD, GAMA
-rad_buffer     = 2              # well buffer radius in miles
+well_src       = 'UCD'          # options: UCD, GAMA
+rad_buffer     = 5              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 
@@ -34,9 +34,15 @@ buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: crea
 #=========================== Import water quality data ==========================
 if well_src == 'GAMA':
     # read gama excel file
-    df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+    # df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+    # df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    # df['DATE']= pd.to_datetime(df['DATE'])
+    
+    file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+    df= dp.get_polut_df(file_sel = file_polut)
     df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
     df['DATE']= pd.to_datetime(df['DATE'])
+
 
 if well_src == 'UCD':
     # file location
@@ -61,7 +67,7 @@ wellbuff_cafo_intersect = gpd.overlay(cafo_dts_gdf, gdf_wellbuffer,how='intersec
 gdf_cafopop_in_buff = wellbuff_cafo_intersect.groupby(["well_id"]).Cafo_Population.sum().reset_index()
 
 # Assign column names to the variables 'well_id' and 'CAFO_population'
-gdf_cafopop_in_buff.columns = ['well_id', f'CAFO_population_{rad_buffer}miles']
+gdf_cafopop_in_buff.columns = ['well_id', f'CAFO_Population_{rad_buffer}miles']
 
 
 # Export CSV with cafo population in well buffer

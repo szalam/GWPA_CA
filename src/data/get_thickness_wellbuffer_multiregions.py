@@ -1,9 +1,5 @@
 #========================================================================================
-# This script calculates the average AEM conductivity or resistivity within well buffers.
-# Steps:
-# 1. Create well buffer of given radius
-# 2. Average the AEM conductivity or resistivity in the well buffers
-# 3. Export data to CSV
+# This script calculates the thickness of well buffer above a threhold conductivity value within well buffers.
 #========================================================================================
 #%%
 import sys
@@ -14,6 +10,7 @@ import warnings
 import pandas as pd
 import ppfun as dp
 import geopandas as gpd
+import numpy as np
 from shapely.geometry import Point
 from geopandas import GeoDataFrame
 from pyproj import CRS
@@ -26,24 +23,20 @@ file_aem = config.data_processed / 'AEM'
 
 #==================== User Input requred ==========================================
 aem_src        = 'DWR'          # options: DWR, ENVGP
-well_src       = 'GAMA'          # options: UCD, GAMA
-aem_reg        = 5              # options: 5, 4. Only applicable when aem_src = DWR
-aem_reg2       = 4              # use only if two regions are worked with
+well_src       = 'UCD'          # options: UCD, GAMA
+aem_regions = [4, 5, 6, 7] # list of all regions
+# aem_reg2       = 4              # use only if two regions are worked with
 aem_lyr_lim    = 9              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
 rad_buffer     = 2              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
+cond_thresh    = 0.15           # [0.01, 0.02, 0.03, 0.05, 0.07, 0.08, 0.1, 0.15, 0.18, 0.2]
 #==================================================================================
 
 
 #=========================== Import water quality data ==========================
 if well_src == 'GAMA':
-    # read gama excel file
-    # df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
-    # df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
-    # df['DATE']= pd.to_datetime(df['DATE'])
-
     file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
     df= dp.get_polut_df(file_sel = file_polut)
     df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
@@ -60,36 +53,32 @@ if well_src == 'UCD':
 df = df.groupby('WELL ID')['APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE',].apply(lambda x: x.iloc[0]).reset_index()
 
 #============================ Import AEM data ===============================
-
-def aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg):
-    aem_fil_loc = file_aem / aem_src / aem_value_type
+thick_loc = 'thickness_abov_threshold_cond'
+def aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg,cond_thresh):
+    aem_fil_loc = file_aem / aem_src / aem_value_type / thick_loc
     if aem_src == 'DWR':
-        interpolated_aem_file = f'{aem_value_type}_lyrs_{aem_lyr_lim}_reg{aem_reg}.npy'
+        interpolated_aem_file = f'lyr_thickness_above_threshold_cond_{round(cond_thresh*100)}_reg{aem_reg}.npy'
     elif aem_src == 'ENVGP':
-        interpolated_aem_file = f'{aem_value_type}_lyrs_{aem_lyr_lim}.npy'
+        interpolated_aem_file = f'lyr_thickness_above_threshold_cond_{round(cond_thresh*100)}_reg{aem_reg}.npy'
     return aem_fil_loc, interpolated_aem_file
-
-# call the function
-aem_fil_loc1, interpolated_aem_file1 = aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg)
-aem_fil_loc2, interpolated_aem_file2 = aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg2)
+#%%
+# # call the function
+# aem_fil_loc1, interpolated_aem_file1 = aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg)
+# aem_fil_loc2, interpolated_aem_file2 = aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_reg2)
 
 
 # Create a list of arguments for the get_aem_from_npy function
-aem_args = [
-    {
-        'file_loc_interpolated': aem_fil_loc1, 
-        'file_aem_interpolated': interpolated_aem_file1, 
-        'aemregion': aem_reg, 
+aem_args = []
+for aem_region in aem_regions:
+    aem_fil_loc, interpolated_aem_file = aem_info(file_aem, aem_src, aem_value_type, aem_lyr_lim, aem_region,cond_thresh)
+    aem_args.append({
+        'file_loc_interpolated': aem_fil_loc, 
+        'file_aem_interpolated': interpolated_aem_file, 
+        'aemregion': aem_region, 
         'aemsrc': aem_src
-    },
-    {
-        'file_loc_interpolated': aem_fil_loc2, 
-        'file_aem_interpolated': interpolated_aem_file2, 
-        'aemregion': aem_reg2, 
-        'aemsrc': aem_src
-    }
-]
+    })
 
+#%%
 # Use a list comprehension to apply the get_aem_from_npy function to each set of arguments
 gdf_aem_list = [dp.get_aem_from_npy(**args) for args in aem_args]
 
@@ -107,7 +96,7 @@ gdfmask["geometry"] = gdfmask["geometry"].convex_hull
 
 gdfaem_boundary = gdfmask
 
-
+#%%
 if buffer_flag == 1:
     gdf_wellbuffer = pd.read_pickle(config.data_processed / f'Well_buffer_shape' / f"{well_src}_buffers_{(rad_buffer)}mile.pkl")
 
@@ -141,7 +130,7 @@ def get_aem_mean_in_well_buffer(gdfres, wqnodes_2m_gpd, aem_value_type):
     aem_wq_buff = gpd.overlay(aemdata, wqnodes_2m_gpd, how='intersection')
     
     # Compute the mean resistivity for each well
-    aem_wq_buff_aemmean = aem_wq_buff.groupby("well_id").Resistivity.mean().reset_index()
+    aem_wq_buff_aemmean = aem_wq_buff.groupby("well_id").Resistivity.apply(lambda x: np.nanmean(x)).reset_index(name='Resistivity')
     
     # Merge the mean resistivity data with the well buffer data
     aem_wq_buff_aemmean = aem_wq_buff_aemmean.merge(wqnodes_2m_gpd, on='well_id', how='left')
@@ -150,7 +139,7 @@ def get_aem_mean_in_well_buffer(gdfres, wqnodes_2m_gpd, aem_value_type):
     aem_wq_buff_aemmean = aem_wq_buff_aemmean[['well_id', 'Resistivity', 'lat', 'lon', 'geometry']]
 
     if aem_value_type == 'conductivity':
-        aem_wq_buff_aemmean = aem_wq_buff_aemmean.rename(columns={'Resistivity': 'Conductivity'}) 
+        aem_wq_buff_aemmean = aem_wq_buff_aemmean.rename(columns={'Resistivity': f'thickness_abovCond_{round(cond_thresh*100)}'}) 
 
     return aem_wq_buff_aemmean
 
@@ -163,17 +152,17 @@ aem_inside_buffer = get_aem_mean_in_well_buffer(gdfres= gdfaem, wqnodes_2m_gpd =
 aem_inside_buffer2 = aem_inside_buffer.drop(['geometry'], axis=1)
 
 # Export CSV with AEM values
-aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile.csv")
+aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/Thickness_abovThresh_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_condThresh_{round(cond_thresh*100)}.csv")
 
 #%%
 #============================ Exporting data to kml ==================================
-fiona.supported_drivers['KML'] = 'rw'
+# fiona.supported_drivers['KML'] = 'rw'
 
-gdf_wellbuffer2 = gdf_wellbuffer.copy()
-gdf_wellbuffer2 = gdf_wellbuffer2[['well_id', 'geometry']]
+# gdf_wellbuffer2 = gdf_wellbuffer.copy()
+# gdf_wellbuffer2 = gdf_wellbuffer2[['well_id', 'geometry']]
 
-# Define the output file name
-gdf_wellbuffer2.to_file(config.data_processed / f'Well_buffer_shape' / f'{well_src}_buffer_{rad_buffer}mile.kml', driver='KML')
+# # Define the output file name
+# gdf_wellbuffer2.to_file(config.data_processed / f'Well_buffer_shape' / f'{well_src}_buffer_{rad_buffer}mile.kml', driver='KML')
 
 # %%
 
