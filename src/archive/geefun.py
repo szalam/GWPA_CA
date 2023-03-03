@@ -7,7 +7,7 @@ import pandas as pd
 import geopandas as gp
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import tqdm as tqdm
+from tqdm import tqdm
 from pandas.tseries.offsets import MonthEnd
 
 startDate = '2015-01-01'
@@ -340,5 +340,42 @@ def crop_all_area(crop_all,cdl_dict, s_grid, attrb = 'cropland'):
     
     return df_crp
 
+
+def gen_polys(geometry, dx=0.5, dy=0.5):
+	
+	'''
+    
+    Use: Subpolys used to submit full res (30m landsat; 10m sentinel) resolution for large areas 
+	Arg: 
+    geometry: ee.Geometry
+	Return: ee.ImaceCollection of polygons 
+
+	'''
+	
+	bounds = ee.Geometry(geometry).bounds()
+	coords = ee.List(bounds.coordinates().get(0))
+	ll = ee.List(coords.get(0))
+	ur = ee.List(coords.get(2))
+	xmin = ll.get(0)
+	xmax = ur.get(0)
+	ymin = ll.get(1)
+	ymax = ur.get(1)
+
+	xx = ee.List.sequence(xmin, xmax, dx)
+	yy = ee.List.sequence(ymin, ymax, dy)
+	
+	polys = []
+
+	for x in tqdm(xx.getInfo()):
+		for y in yy.getInfo():
+			x1 = ee.Number(x).subtract(ee.Number(dx).multiply(0.5))
+			x2 = ee.Number(x).add(ee.Number(dx).multiply(0.5))
+			y1 = ee.Number(y).subtract(ee.Number(dy).multiply(0.5))
+			y2 = ee.Number(y).add(ee.Number(dy).multiply(0.5))
+			geomcoords = ee.List([x1, y1, x2, y2]);
+			rect = ee.Algorithms.GeometryConstructors.Rectangle(geomcoords);
+			polys.append(ee.Feature(rect))
+
+	return ee.FeatureCollection(ee.List(polys)).filterBounds(geometry)
 # Note: data_info() function was adapted from Kashington repo
 

@@ -258,4 +258,7 @@ df['well_id'] = df['well_id'].str.replace('NO3_', '')
 df.to_csv(config.data_processed / "Dataset_processed.csv", index=False)
 
 # %%
+<<<<<<< HEAD
  
+=======
+>>>>>>> a8a6aa05bb562943670383acc501490b851d6591

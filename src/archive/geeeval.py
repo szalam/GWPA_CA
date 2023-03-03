@@ -20,7 +20,7 @@ ee.Initialize()
 sys.path.insert(0,'src')
 import config
 
-sel_var = 'ndvi' # gpm
+sel_var = 'gpm' # gpm, ndvi
 
 #=========================
 # Processing NDVI, Precipitation data
@@ -123,7 +123,7 @@ for yr in tqdm(range(2008,2022)):
     
 # %%
 crop_df.head(2)
-# %%
+# %% 
 yr_ser = range(2008,2022)
 crop_sel = [0,4,35,53,60,68,71,74,75,175,203,211,]
 for i in crop_sel:
