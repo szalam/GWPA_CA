@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import ppfun as dp
 import geopandas as gpd
 from shapely.geometry import Point
+import get_infodata as gi
 
 #%%
 data_src = 'UCD'
@@ -55,3 +56,18 @@ df_well_cafo_pos.to_file(config.data_processed / 'kml' / f"well_cafo_pos_relatio
 
 # gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
 # mean_nitrate_df.to_file(config.data_processed / 'kml' / f"mean_nitrate_{data_src}.kml", driver='KML')
+
+#%%
+gwpa = gi.get_basic_data(out_data='gwpa')
+# %%
+gwpa_leaching = gwpa[gwpa.GWPAType == 'Leaching']
+gwpa_runoff = gwpa[gwpa.GWPAType == 'Runoff']
+gwpa_leach_or_runoff = gwpa[gwpa.GWPAType == 'Leach/Runoff']
+
+# %%
+
+gwpa_leaching.to_file(config.data_processed / 'kml' / f"gwpa_leaching.shp", driver='ESRI Shapefile')
+gwpa_runoff.to_file(config.data_processed / 'kml' / f"gwpa_runoff.shp", driver='ESRI Shapefile')
+gwpa_leach_or_runoff.to_file(config.data_processed / 'kml' / f"gwpa_leach_or_runoff.shp", driver='ESRI Shapefile')
+
+# %%

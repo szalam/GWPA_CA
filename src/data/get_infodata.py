@@ -25,7 +25,7 @@ def get_nitrate():
 
     c = c_no3.copy()            # options: c_no3.copy(), c_gama.copy()
 
-def get_region(reg_sel = 'CV'): 
+def get_region(reg_sel = 'cv'): 
     # Arg:
     # reg_sel = cv, cv_subreg, kw
     # read kaweah region
@@ -48,13 +48,22 @@ def get_casgem():
     casgem_st = dp.df_to_gpd(casgem_st, lat_col_name = 'latitude', lon_col_name = 'longitude')
     return casgem_st
 
-def  get_basic_data():
-    cv = get_region(reg_sel = 'CV')
+def  get_basic_data(out_data = 'gwpa'):
+    cv = get_region(reg_sel = 'cv')
     # read well, gwpa, cafo and aem shapes and clip
     well = dp.point_clip((config.shapefile_dir   / 'cafo_well/well_count.shp'), reg = cv)
     gwpa = dp.point_clip((config.shapefile_dir   / "ca_statewide_gwpa/CA_Statewide_GWPAs.shp"), reg = cv)
     cafo = dp.point_clip((config.shapefile_dir   / 'cafo_well/CAFO.shp') , reg = cv)
     aem = dp.point_clip(file_aem_ca, reg = cv)
+
+    if out_data == 'well':
+        return well
+    if out_data == 'gwpa':
+        return gwpa
+    if out_data == 'cafo':
+        return cafo
+    if out_data == 'aem':
+        return aem
 
 def get_aem_engp():
     # read the AEM files from ENGP group

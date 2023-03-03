@@ -18,22 +18,31 @@ import matplotlib as mpl
 import get_infodata as gi
 import geopandas as gpd
 
-plt_cond = 0.05      # Threshold condoctivity above which thickness calculated
-
 # Read dataset
-df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
-df = df[df.well_data_source == 'UCD']
-df = df[df['SubRegion'] != 14]
+df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
+#%%
+df = df_main.copy()
+plt_cond = 0.05      # Threshold condoctivity above which thickness calculated
+lyrs = 4
+#%%
+df = df[df.well_data_source == 'GAMA']
+# df = df[df['SubRegion'] != 14]
 # df = df[df['SubRegion'] == 10]
 # df = df[df.measurement_count > 4]
 # df = df[df.city_inside_outside == 'outside_city']
-# well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
-# df = df[df.well_type ==  well_type_select] 
+well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
+df = df[df.well_type ==  well_type_select] 
 # df = df[pd.isna(df.GWPAType)==True] # False for areas with GWPA
 
 # Remove high salinity regions
-condition = (df[f'thickness_abovCond_{round(plt_cond*100)}'] > 31) & (df['mean_nitrate'] > 0)
-df = df[condition==False]
+exclude_subregions = [14, 15, 10, 19,18, 9,6]
+# filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
+df = df[(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_9'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+# df = df[(df[f'thickness_abovCond_{round(0.1*100)}_lyrs_{lyrs}'] == 0)]
+# df = df[(df[f'thickness_abovCond_{round(0.08*100)}_lyrs_{lyrs}'] == 0)]
+        
+# condition = (df[f'thickness_abovCond_{round(plt_cond*100)}'] > 31) & (df['mean_nitrate'] > 0)
+# df = df[condition==False]
 
 # df = df[df.mean_nitrate>10]
 # df = df.dropna()
@@ -44,23 +53,39 @@ layer_depths = gi.dwr_aem_depths()
 cond_threshold_fine_list = [0.01,0.02,0.03, 0.05,0.06,0.07, 0.08, 0.1, 0.13, 0.15, 0.18, 0.2, 0.25]
 #%%
 
-plt.scatter(df[f'thickness_abovCond_{round(plt_cond*100)}'], df.mean_nitrate, s = 1.5)
+plt.scatter(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}'], df.mean_nitrate, s = 1.5)
 plt.ylim(0 ,40)
 # plt.xlim(0 ,100)
 # plt.title(f'Well type: {well_type_select}')
-plt.xlabel(f'Thickness of layers with conductivity > {plt_cond}')
+plt.xlabel(f'Thickness of layers with resistivity <= {1/plt_cond}')
 plt.ylabel('Nitrate-N')
 # plt.colorbar(label='Topsoil conductivity')
 
+#%%
+import statsmodels.api as sm
+x = df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}']
+y = df.mean_nitrate
+
+lowess = sm.nonparametric.lowess(y, x, frac=.2) # adjust frac to control smoothing
+plt.scatter(x, y, s=1.5)
+plt.plot(lowess[:,0], lowess[:,1], c='r')
+plt.ylim(0, 40)
+plt.xlabel(f'Thickness of layers with resistivity <= {1/plt_cond}')
+plt.ylabel('Nitrate-N')
+plt.show()
 
 #%%
 # Boxplot
 # create a new column in the dataframe to map depth values to range categories
-df['Depth_range'] = pd.cut(df[f'thickness_abovCond_{round(plt_cond*100)}'], 
+df['Depth_range'] = pd.cut(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}'], 
                         #    bins=[-1, 0, 5, 15, 25, 35], 
-                           bins=[-1, 0, 5, 10, 15, 20, 25, 30, 35], 
+                        #    bins=[-1, 0, 5, 10, 15, 25, 35], 
+                        #    bins=[-1, 0, 10, 25, 35], 
                         #    labels=['0', '(0,5]', '(5,15]', '(15,25]', '(25,35)'])
-                            labels=['0', '(0,5]', '(5,10]', '(10,15]', '(15,20]','(20,25]', '(25,30)','(30,35]'])
+                            # labels=['0', '(0,5]', '(5,10]', '(10,15]', '(15,25]', '(25,35]'])
+                            # labels=['0', '(0,10]', '(10,25]','(25,35]'])
+                              bins=[-1, 0, 3, 6, 10],
+                              labels=['0', '(0,3]', '(3,6]','(6,10]'])
 
 
 # create the boxplot using seaborn
@@ -68,11 +93,11 @@ sns.boxplot(x='Depth_range', y='mean_nitrate', data=df,
             palette='viridis', linewidth=1)
 
 # set the y-axis limits
-plt.ylim(0, 100)
+plt.ylim(0, 40)
 
 # set the title and axis labels
 plt.title(f'Well type: {well_type_select}')
-plt.xlabel(f'Thickness of layers with conductivity > {plt_cond}')
+plt.xlabel(f'Thickness of layers with resistivity <= {1/plt_cond}')
 plt.ylabel('Nitrate-N')
 
 # display the plot

@@ -12,6 +12,8 @@ csv_files_ucd = [f'{config.data_processed}/well_stats/ucdnitrate_stats.csv',
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_UCD_rad_2mile.csv', 
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_UCD_rad_5mile.csv', 
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_1.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_4.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_6.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_layerwide.csv']
 
@@ -21,6 +23,8 @@ csv_files_gama = [f'{config.data_processed}/well_stats/gamanitrate_stats.csv',
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_GAMA_rad_2mile.csv',
             f'{config.data_processed}/cafo_pop_wellbuffer/Cafopop_wellsrc_GAMA_rad_5mile.csv', 
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_1.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_4.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_6.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_layerwide.csv']
 
@@ -68,7 +72,8 @@ columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'mean_concentration_2019-2021', 'mean_concentration_2017-2018',
        'trend','change_per_year', 'start_date', 'end_date', 
        'gwdep', 'area_wt_sagbi', 'total_obs', 'well_type',
-       'CAFO_Population_2miles','CAFO_Population_5miles', 'Conductivity_lyrs_9','Conductivity_lyrs_1','well_data_source']
+       'CAFO_Population_2miles','CAFO_Population_5miles', 'Conductivity_lyrs_9',
+       'Conductivity_lyrs_6','Conductivity_lyrs_4','Conductivity_lyrs_1','well_data_source']
 
 for i in range(1,21):
     column_name = f'Conductivity_depthwtd_lyr{i}'
@@ -78,6 +83,8 @@ df = df[columns_to_keep]
 
 # Inverse conductivity to get depth average resistivity
 df['Resistivity_lyrs_9'] = 1/df['Conductivity_lyrs_9']
+df['Resistivity_lyrs_6'] = 1/df['Conductivity_lyrs_6']
+df['Resistivity_lyrs_4'] = 1/df['Conductivity_lyrs_4']
 df['Resistivity_lyrs_1'] = 1/df['Conductivity_lyrs_1']
 #%%
 
@@ -196,21 +203,23 @@ df = pd.merge(df, df_gwpa, on='well_id', how='outer')
 
 # Read and merge the thickness for different conductivity threshold
 
-def get_thickness_data(df, dtype_sel = 'GAMA'):
+def get_thickness_data(df, aem_lyr_lim = 4, dtype_sel = 'GAMA',rad_buffer = 2):
     # Set the values of cond_thresh to run the code for
     cond_thresh_values = [0.05, 0.08, 0.10, 0.15]
-
     # Loop over the cond_thresh values and run the code for each value
     for cond_thresh in cond_thresh_values:
         # Read the DataFrame from the CSV file
-        df_thickness = pd.read_csv(config.data_processed / f"aem_values/Thickness_abovThresh_DWR_wellsrc_{dtype_sel}_rad_2mile_condThresh_{round(cond_thresh*100)}.csv")
-
+        df_thickness = pd.read_csv(config.data_processed / f"aem_values/Thickness_abovThresh_DWR_wellsrc_{dtype_sel}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}_condThresh_{round(cond_thresh*100)}.csv")
         # Check if the column exists
         old_col_name = 'Conductivity_lyrs_9'
-        new_col_name = f'thickness_abovCond_{round(cond_thresh*100)}'
+        old_col_name2 = f'thickness_abovCond_{round(cond_thresh*100)}'
+        new_col_name = f'thickness_abovCond_{round(cond_thresh*100)}_lyrs_{aem_lyr_lim}_rad_{rad_buffer}miles'
         if old_col_name in df_thickness.columns:
             # Rename the column to the new name
             df_thickness = df_thickness.rename(columns={old_col_name: new_col_name})
+        if old_col_name2 in df_thickness.columns:
+            # Rename the column to the new name
+            df_thickness = df_thickness.rename(columns={old_col_name2: new_col_name})
 
         # Select the columns we want to keep
         df_thickness = df_thickness[['well_id', new_col_name]]
@@ -220,11 +229,26 @@ def get_thickness_data(df, dtype_sel = 'GAMA'):
 
     return df
 
+# df_tmp = df[['well_id']]
+# df_gama_thickness_4 = get_thickness_data(df = df_tmp,aem_lyr_lim = 4, dtype_sel = 'GAMA',rad_buffer = 2)
+# df_gama_thickness_6 = get_thickness_data(df = df_tmp,aem_lyr_lim = 6, dtype_sel = 'GAMA')
+# df_gama_thickness_9 = get_thickness_data(df = df_tmp,aem_lyr_lim = 9, dtype_sel = 'GAMA')
+# df_ucd_thickness_4 = get_thickness_data(df = df_tmp,aem_lyr_lim = 4, dtype_sel = 'UCD')
+# df_ucd_thickness_6 = get_thickness_data(df = df_tmp,aem_lyr_lim = 6, dtype_sel = 'UCD')
+# df_ucd_thickness_9 = get_thickness_data(df = df_tmp,aem_lyr_lim = 9, dtype_sel = 'UCD')
+# # Combine two dataset
+# df_thickness = pd.concat([df_gama_thickness_4, df_gama_thickness_6,df_gama_thickness_9,
+#                           df_ucd_thickness_4,df_ucd_thickness_6,df_ucd_thickness_9], axis=0)
+
 df_tmp = df[['well_id']]
-df_gama_thickness = get_thickness_data(df = df_tmp, dtype_sel = 'GAMA')
-df_ucd_thickness = get_thickness_data(df = df_tmp, dtype_sel = 'UCD')
-# Combine two dataset
-df_thickness = pd.concat([df_gama_thickness, df_ucd_thickness], axis=0)
+df_thickness_list = []
+
+for aem_lyr_lim in [4, 6, 9]:
+    for rad_buffer in [.5, 1, 2, 3, 4, 5]:
+        df_gama_thickness = get_thickness_data(df=df_tmp, aem_lyr_lim=aem_lyr_lim, dtype_sel='GAMA', rad_buffer=rad_buffer)
+        df_thickness_list.append(df_gama_thickness)
+
+df_thickness = pd.concat(df_thickness_list)
 df = pd.merge(df, df_thickness, on='well_id', how='outer')
 #%%
 # Use the str.replace() method to remove 'NO3_' from all values in the 'well_id' column

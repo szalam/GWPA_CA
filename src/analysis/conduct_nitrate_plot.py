@@ -16,32 +16,46 @@ from scipy import stats
 import seaborn as sns
 import matplotlib as mpl
 
-# cond_type_used = 'Resistivity_lyrs_1' #'Conductivity_lyrs_9' # 'Conductivity_lyrs_1'
-cond_type_used = 'Conductivity_lyrs_9'
+df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
+#%%
+df = df_main.copy()
+lyrs = 9
+cond_type_used = f'Resistivity_lyrs_{lyrs}' #'Conductivity_lyrs_9' # 'Conductivity_lyrs_1'
+# cond_type_used = 'Conductivity_lyrs_9'
 if cond_type_used == 'Conductivity_lyrs_9' or cond_type_used == 'Conductivity_lyrs_1':
     aem_type = 'Conductivity'
 else:
     aem_type = 'Resistivity'
 
 # Read dataset
-df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 df = df[df.well_data_source == 'GAMA']
 # df = df[df.measurement_count > 4]
 # df = df[df.city_inside_outside == 'outside_city']
 # df = df[df.city_inside_outside == 'inside_city']
 # df = df[[f'{cond_type_used}','mean_nitrate']]
-df = df[df['SubRegion'] != 14]
-df = df[df[f'thickness_abovCond_{round(.1*100)}'] == 0 ]
+# df = df[df['SubRegion'] != 14]
+# df = df[df['SubRegion']==6]
+# df = df[df[f'thickness_abovCond_{round(.1*100)}'] == 0 ]
+# well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
+# df = df[df.well_type ==  well_type_select] 
+# df = df[df.All_crop_2015 >= 2.030499e+08]
+
+# Remove high salinity regions
+exclude_subregions = [14, 15, 10, 19,18, 9,6]
+# filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
+df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
 # df = df[df.mean_nitrate>10]
 # df = df.dropna()
 
 # df = df[['well_id','Conductivity','mean_nitrate','area_wt_sagbi', 'Cafo_Population_5miles','Average_ag_area','change_per_year','total_ag_2010','APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE','city_inside_outside']]
 # df = df.head(1000)
-
 #%%
 plt.scatter(df[cond_type_used], df.mean_nitrate, s = 1.5, c = 'red')
 plt.ylim(0 ,100)
+# plt.xlim(0 ,70)
 # plt.xlim(0 ,100)
+# plt.xscale('log')
+
 
 # Set x-axis to log scale
 # plt.xscale('log')
@@ -55,7 +69,7 @@ plt.figure()
 plt.hist(df[cond_type_used], bins=50, cumulative=True, density=True, histtype='step', color='blue')
 
 # Set x-axis to log scale
-# plt.xscale('log')
+plt.xscale('log')
 
 # Set y-axis limit to 0 to 1
 plt.ylim(0, 1)
@@ -64,16 +78,17 @@ plt.ylim(0, 1)
 plt.show()
 
 # %%
-
 if aem_type == 'Resistivity':
-    df = df[df[f'{cond_type_used}']<250]
+    df = df[df[f'{cond_type_used}']<70]
 
 # Bin Conductivity into intervals of .05
 if aem_type == 'Conductivity':
     df = df[df[f'{cond_type_used}']<1]
-    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}'], np.arange(0, df[f'{cond_type_used}'].max()+.001,.01))
+    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}'], 
+                                       np.arange(0, df[f'{cond_type_used}'].max()+.001,.01))
 if aem_type == 'Resistivity':
-    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}'], np.arange(0, df[f'{cond_type_used}'].max()+1,10))
+    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}'], 
+                                       np.arange(0, df[f'{cond_type_used}'].max()+1,5))
 # Increase the font size
 # mpl.rcParams.update({'font.size': 14})
 
@@ -86,7 +101,7 @@ plt.ylabel('Nitrate [mg/l]', fontsize =13)
 plt.tick_params(axis='both', which='major', labelsize=10)
 
 # Set y-axis limit to 0 to 100
-plt.ylim(0, 70)
+plt.ylim(0, 40)
 
 # Rotate x tick labels for better readability
 plt.xticks(rotation=90)
@@ -96,9 +111,13 @@ plt.show()
 
 #%%
 if aem_type == 'Conductivity':
-    df[f"{cond_type_used}"].plot.hist(rwidth=0.9, color="orange", edgecolor='black', bins=np.arange(df[f'{cond_type_used}'].min(), df[f'{cond_type_used}'].max() + .1, 0.02))
+    df[f"{cond_type_used}"].plot.hist(rwidth=0.9, color="orange", edgecolor='black', 
+                                      bins=np.arange(df[f'{cond_type_used}'].min(), df[f'{cond_type_used}'].max() + .1, 0.02))
 if aem_type == 'Resistivity':
-    df[f"{cond_type_used}"].plot.hist(rwidth=0.9, color="orange", edgecolor='black',  bins=np.arange(df[f'{cond_type_used}'].min(), df[f'{cond_type_used}'].max() + 1, 5))
+    # df = df[df[f"{cond_type_used}"]<=100]
+    df[f"{cond_type_used}"].plot.hist(rwidth=0.9, color="orange", edgecolor='black',  
+                                      bins=np.arange(df[f'{cond_type_used}'].min(), df[f'{cond_type_used}'].max() + 1, 5))
+ 
 
 plt.xlabel(f'{aem_type}')
 plt.ylabel('Counts')
@@ -250,4 +269,45 @@ print(result.summary())
 # be used to determine the range of values that is likely to contain the true 
 # effect with a high degree of confidence.
 
+# %%
+# Nitrate difference below vs above threshold
+from scipy.stats import ttest_ind
+
+for res_threshold in [10, 15, 20, 25, 30, 35, 40]:
+    df_up = df[df[cond_type_used] > res_threshold]
+    df_down = df[df[cond_type_used] <= res_threshold]
+    mean_nitrate_up = df_up.mean_nitrate.mean()
+    mean_nitrate_down = df_down.mean_nitrate.mean()
+    median_nitrate_up = df_up.mean_nitrate.median()
+    median_nitrate_down = df_down.mean_nitrate.median()
+    t, p = ttest_ind(df_up.mean_nitrate, df_down.mean_nitrate, equal_var=False)
+    if p < 0.05:
+        print(f'Resistivity: {res_threshold}; up: {median_nitrate_up:.2f}, down: {median_nitrate_down:.2f}; up-down: {median_nitrate_up - median_nitrate_down:.2f}; p-value: {p:.3f} (stat significant)')
+    else:
+        print(f'Resistivity: {res_threshold}; up: {median_nitrate_up:.2f}, down: {median_nitrate_down:.2f}; up-down: {median_nitrate_up - median_nitrate_down:.2f}; p-value: {p:.3f} (not stat significant)')
+#%%
+# Nitrate difference +- 10 of the threshold
+for res_threshold in [20, 30, 40,50]:
+    df_up = df[(df[cond_type_used] > res_threshold) & (df[cond_type_used] <= res_threshold + 10)]
+    df_down = df[(df[cond_type_used] >= res_threshold - 10) & (df[cond_type_used] <= res_threshold)]
+    mean_nitrate_up = df_up.mean_nitrate.mean()
+    mean_nitrate_down = df_down.mean_nitrate.mean()
+    median_nitrate_up = df_up.mean_nitrate.median()
+    median_nitrate_down = df_down.mean_nitrate.median()
+    t, p = ttest_ind(df_up.mean_nitrate, df_down.mean_nitrate, equal_var=False)
+    if p < 0.05:
+        print(f'Resistivity: {res_threshold}; up: {median_nitrate_up:.2f}, down: {median_nitrate_down:.2f}; up-down: {median_nitrate_up - median_nitrate_down:.2f}; p-value: {p:.3f} (statistically significant)')
+    else:
+        print(f'Resistivity: {res_threshold}; up: {median_nitrate_up:.2f}, down: {median_nitrate_down:.2f}; up-down: {median_nitrate_up - median_nitrate_down:.2f}; p-value: {p:.3f} (not statistically significant)')
+
+
+
+
+# %%
+fig, ax = plt.subplots(1,1)
+ax.hist(df_up.mean_nitrate,alpha = .5, density = True, bins = np.arange(40))
+ax.hist(df_down.mean_nitrate, alpha = .5, density=True, bins = np.arange(40))
+# %%
+df_up.mean_nitrate.describe()
+df_down.mean_nitrate.describe()
 # %%
