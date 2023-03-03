@@ -1,0 +1,9 @@
+#===============================================================================
+Script name                 : Purpose
+#===============================================================================
+get_aggregate_dataset.py    : Combine all different csvs into one csv
+get_aemvalue_wellbuffer.py  : Calculate mean AEM resistivity/conductivity values under well buffer
+get_cafopop_inbuffer.py     : Calculate total CAFO population inside well buffers
+get_gwdepth_at_wells.py     : Calculate groundwater depths at well locations
+get_nitratedata_ucd.py      : Calculate nitrate statistics for UCD well data
+get_nitratedata_gama.py     : Calculate nitrate statistics for GAMA well data
