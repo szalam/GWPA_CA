@@ -1,0 +1,330 @@
+---
+title: "Study area map"
+output:
+  pdf_document: default
+  html_document: default
+date: '2023-03-07'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+defaultW <- getOption("warn") 
+
+options(warn = -1) 
+
+options(warn = defaultW)
+```
+
+```{r echo=FALSE, eval=TRUE}
+# Working set up ---------------------------
+library(sf)
+library(tidyverse)
+library(cartography)
+library(RColorBrewer)
+library(scales)
+library(rgdal)
+# library(tigris)
+library(raster)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(rnaturalearth)
+# 1. Set paths and parameters -----
+# load("CONFIG.Rspace") # gdrive data paths
+dir_loc = 'C:/sarfaraz/GWPA_dataset/'
+
+```
+
+```{r}
+#river network
+cv = readOGR(paste0(dir_loc,'shapefile/cv.shp'))
+cv_back = cv
+cv = st_as_sf(cv)
+
+# CA state boundary
+ca = readOGR(paste0(dir_loc,'shapefile/CA_State_TIGER2016.shp'))
+ca_back = ca
+ca = spTransform(ca, crs(cv))
+ca = st_as_sf(ca)
+
+# Stream network
+sn = readOGR(paste0(dir_loc,'shapefile/stream_network.shp'))
+sn = spTransform(sn, crs(cv))
+sn = st_as_sf(sn)
+
+# Hydrologic regions
+hr = readOGR(paste0(dir_loc,'shapefile/HRs.shp'))
+hr = spTransform(hr, crs(cv))
+hr = st_as_sf(hr)
+
+```
+
+```{r}
+
+df <- read.csv(paste0(dir_loc,"Dataset_processed.csv"), header = TRUE, sep = ",")
+
+# remove all rows with missing values in the "mean_nitrate" column
+df <- df[complete.cases(df$APPROXIMATE.LONGITUDE), ]
+
+# create a spatial data frame using the "lon" and "lat" columns
+df_nit <- st_as_sf(df, coords = c("APPROXIMATE.LONGITUDE", "APPROXIMATE.LATITUDE"))
+
+
+# set the coordinate reference system to WGS84 (longitude/latitude)
+st_crs(df_nit) <- 4326
+
+# Clip df_nit using the boundary of cv
+df_nit <- st_intersection(df_nit, cv)
+# 
+# #monitor location
+# mont = readOGR(paste0(wd$gdrive,'data/processed/Shapefiles/monitors_MRB_network_model.shp'))
+# mont = st_as_sf(mont)
+# # mont = mont[mont$variable %in% c('P'),]
+```
+
+
+```{r}
+
+df_nit = df_nit[df_nit$well_data_source == 'GAMA',]
+# remove all rows with missing values in the "mean_nitrate" column
+df_nit <- df_nit[complete.cases(df_nit$mean_nitrate), ]
+df_nit_dom = df_nit[df_nit$well_type == 'Domestic',]
+df_nit_isdata_2000_2022 = df_nit[is.na(df_nit$mean_concentration_2000.2022) == FALSE,]
+
+```
+
+```{r}
+# Read flowlines
+
+# set the path to the main folder
+path <- "C:/sarfaraz/GWPA_dataset/shapefile/dwr_survey_lines"
+
+# # create a list of all subfolders in the main folder
+subfolders <- list.dirs(path, recursive = FALSE)
+
+# create an empty list to store the spatial objects
+shp_list <- list()
+
+# loop through each subfolder and read the shapefiles
+for (subfolder in subfolders) {
+  # set the path to the subfolder
+  sub_path <- file.path(subfolder)
+  
+  # get a list of all shapefiles in the subfolder
+  shp_files <- list.files(sub_path, pattern = "\\.shp$", full.names = TRUE)
+  
+  # Data read
+  shp_list_sub = readOGR(paste0(shp_files))
+  shp_list_sub = spTransform(shp_list_sub, crs(cv))
+  shp_list_sub = st_as_sf(shp_list_sub)
+  
+  # add the combined object to the main list
+  shp_list[[subfolder]] <- shp_list_sub
+}
+
+# combine all spatial objects in the list into a single object
+shp_combined <- bind_rows(shp_list)
+
+```
+
+
+```{r}
+bbox <- st_bbox(cv)
+
+g = ggplot() +
+  geom_sf(data = ca, fill = 'gray90',  lwd = 0.1, color = "gray80") + ##3487A6
+  # geom_sf(data = sts, fill = NA, lwd = 0.1, color = "gray60") +
+  geom_sf(data = cv,  lwd = 0.3, fill = 'white', color = "gray90") +
+  # geom_sf(data = hr,  lwd = 0.3, fill = NA, color = "white") +
+  # geom_sf(data = sts, fill = NA,  lwd = 0.1, color = "gray60") +
+  # geom_sf(data = sn, fill = '#3487A6', lwd = 0.1, color = "#3487A6") +
+  # geom_sf(data = df_nit_dom, shape = 24, size = .1, fill = NA, color = "#3487A6") +
+  # geom_sf(data = df_nit, size = .1, fill = NA, color = "#3487A6") +
+  # geom_sf(data = df_nit_isdata_2000_2022, size = .1, fill = NA, color = "#3487A6") +
+  geom_sf(data = shp_combined, lwd = 0.1, color = "#3487A6")+
+  theme(panel.border = element_rect(colour = "black", fill=NA, size=1))+
+  # geom_text(data = huc8, aes(label = Name, x = lon_cent, y = lat_cent), size = 2) +
+  theme_void()+
+xlim(bbox[1]-.1, bbox[3]+.1) +
+  ylim(bbox[2]-.1, bbox[4]+.1)
+
+g
+
+ggsave(file.path(path, 'study_area.pdf'))
+```
+
+
+
+
+```{r}
+df_nit_sel =  df_nit_isdata_2000_2022 #df_nit #df_nit_isdata_2000_2022
+df_nit_sel[which(df_nit_sel$mean_concentration_2000.2022 > 200),'mean_concentration_2000.2022'] <- 100
+
+# extract latitude and longitude from the sf dataframe
+coords <- st_coordinates(df_nit_sel)
+coords <- as.data.frame(coords)
+colnames(coords) <- c("lon", "lat")
+df_nit_sel = cbind(df_nit_sel,coords)
+  
+# set the nitrate range for the color scale
+nitrate_range <- range(df_nit_sel$mean_concentration_2000.2022)
+
+# plot the data
+bbox <- st_bbox(cv)
+
+# Set color scale
+color_scale <- scale_fill_viridis(name = "Mean concentration\n2000-2022",
+                                  option = "inferno",
+                                  direction = -1,
+                                  na.value = "grey90")
+
+# Create plot
+g = ggplot() +
+  geom_sf(data = ca, fill = 'gray90',  lwd = 0.1, color = "gray80") +
+  geom_sf(data = cv,  lwd = 0.3, fill = 'white', color = "gray90") +
+  geom_sf(data = df_nit_sel, aes(fill = mean_concentration_2000.2022, size = 0.05*mean_concentration_2000.2022,alpha = 0.05)) +
+  scale_fill_viridis_c(option = "magma", limits = c(0, 100), name = "Mean Nitrate Concentration\n2000-2022") +
+  scale_size_identity(name = "Size") +
+  guides(size = guide_legend(override.aes = list(alpha = 0.2)),
+         fill = guide_colorbar(barwidth = .5, barheight = 10, 
+                               title.position = "top", title.hjust = 0.5, 
+                               label.position = "right", label.hjust = 0.5)) +
+  theme(panel.border = element_rect(colour = "black", fill=NA, size=1), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        legend.position = "bottom",
+        legend.key.size = unit(0.6, "cm"),
+        legend.title = element_text(size = 10),
+        legend.text = element_text(size = 8),
+        legend.box.background = element_rect(fill = "white", color = "gray80")) +
+  theme_void() +
+  xlim(bbox[1]-.1, bbox[3]+.1) +
+  ylim(bbox[2]-.1, bbox[4]+.1)
+
+g
+
+
+
+
+
+# ggsave(file.path(path, 'nitrate_val.pdf'))
+
+```
+
+
+```{r}
+
+# Set up the plot
+plot <- ggplot() +
+  # Add the sf object as a layer
+  geom_sf(data = df_nit_sel, aes(fill = mean_concentration_2000.2022, size = mean_concentration_2000.2022)) +
+  # Remove the coordinate grid
+  theme_void()
+
+# Display the plot
+plot
+```
+
+
+
+```{r}
+sel_colm    = 'mean_nitrate' #'mean_concentration_2000.2005'
+max_col_lim = 20
+
+df_nit_sel <- df_nit #df_nit_isdata_2000_2022
+df_nit_sel[df_nit_sel[[sel_colm]] > max_col_lim, sel_colm] <- max_col_lim
+
+# df_nit_sel = df_nit_sel[df_nit_sel$measurement_count > 5, ]
+# df_nit_sel = df_nit_sel[df_nit_sel$well_type == 'Domestic', ]
+
+# extract latitude and longitude from the sf dataframe
+coords <- st_coordinates(df_nit_sel)
+coords <- as.data.frame(coords)
+colnames(coords) <- c("lon", "lat")
+df_nit_sel = cbind(df_nit_sel,coords)
+
+tmp = data.frame(df_nit_sel)
+library(viridis)
+
+bbox <- st_bbox(cv)
+
+# define breaks for the different groups
+breaks <- c(0, 2, 4, 6, 8, 10, Inf)
+
+# define color palette for each group
+# colors <- colorRampPalette(c("seagreen", "red"))(length(breaks)-1)
+# colors <- colorRampPalette(c("skyblue", "red"))(length(breaks)-1)
+# colors <- magma(length(breaks)-1)
+# colors <- coolwarm(length(breaks)-1)
+colors <- rev(brewer.pal(length(breaks), "RdYlGn"))
+# colors <- brewer.pal(length(breaks), "YlOrRd")
+# define color palette for each group
+# colors <- c("gray", "skyblue", "#8BCB4A", "yellow", "orange", "red")
+
+
+# define labels for each group
+labels <- c("0-2", ">2-4", ">4-6", ">6-8", ">8-10", ">10")
+
+# create a new column with group labels based on the 'sel_colm' column values
+df_nit_sel$group <- cut(df_nit_sel[[sel_colm]], breaks = breaks, labels = labels, include.lowest = TRUE)
+
+# remove rows with missing values in the 'sel_colm' column
+df_nit_sel <- na.omit(df_nit_sel[c("lon", "lat", sel_colm, "group")])
+
+
+# plot the data using custom color palette for each group
+g = ggplot() +
+  geom_sf(data = ca, fill = 'gray90', lwd = 0.1, color = "gray80") +
+  geom_sf(data = cv, lwd = 0.3, fill = 'white', color = "gray50") +
+  geom_point(data = df_nit_sel, aes(x = lon, y = lat, color = group), alpha = 1,size = .1) +
+  scale_color_manual(values = colors, labels = labels) +
+  guides(color = guide_legend(override.aes = list(size = 5))) + # increase size of legend points
+  theme_void() + 
+  coord_sf() +
+  xlim(bbox[1]-.1, bbox[3]+.1) +
+  ylim(bbox[2]-.1, bbox[4]+.1)+
+  labs(color = "Mean Nitrate-N [mg/l]")
+
+g
+
+# save the plot as a pdf with a width of 8 inches and height of 6 inches
+# ggsave(file.path(path, 'nitrate_val_grntored_domestic.pdf'), width = 9, height = 10)
+ggsave(file.path(path, 'nitrate_val_grntored.pdf'), width = 9, height = 10)
+# ggsave(file.path(path, 'nitrate_val_yeltored.pdf'), width = 9, height = 10)
+# ggsave(file.path(path, 'nitrate_val.pdf'), width = 5, height = 7)
+# ggsave(file.path(path, 'nitrate_val_customrange.pdf'), width = 9, height = 10)
+
+```
+
+
+
+
+```{r}
+
+# Load the world map from rnaturalearth
+world_map <- ne_countries(scale = "medium", returnclass = "sf")
+us_map <- world_map[world_map$admin == "United States of America",]
+na_datum <- "+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0"
+
+# Load the US state boundaries from rnaturalearth
+us_states <- ne_states(country = "United States of America",  returnclass = "sf")
+
+bbox <- st_bbox(us_map)
+
+# Plot the world map with your data on top of it
+g = ggplot() +
+  geom_sf(data = us_states, fill = 'gray95', color = "white", lwd = 0.5) +
+  geom_sf(data = ca, fill = 'white', lwd = 0.1, color = "white") +
+  geom_sf(data = cv, lwd = 0.1, fill = '#3487A6', color = "gray50") +
+    geom_sf(data = us_map, fill = NA, color = "gray60") +
+  coord_sf(datum = na_datum, xlim = c(-130, -65), ylim = c(23, 50),crs = st_crs(4326)) +
+  theme_void()
+
+g
+
+ggsave(file.path(path, 'CV_in_us.pdf'))
+
+
+```

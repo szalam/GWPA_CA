@@ -120,7 +120,7 @@ def get_aem_resistivity_plot(gdfres, resistivity_above = None, reg=None, conduct
     aemres = aemres.dropna(subset=['Resistivity'])
     aemres.Resistivity = 1/aemres.Resistivity
 
-    aemres.loc[aemres.Resistivity > 50, 'Resistivity'] = 50  # Set values greater than 50 to 50
+    # aemres.loc[aemres.Resistivity > 50, 'Resistivity'] = 50  # Set values greater than 50 to 50
 
     # define the list of SubRegions to exclude
     exclude_subregions = [14, 15, 10, 19,18, 9,6]
@@ -167,11 +167,6 @@ aemres_tmp, depth_avg_res = get_aem_resistivity_plot(gdfres = gdfaem, resistivit
 aemres2 = aemres_tmp[['Resistivity', 'geometry', 'HR', 'SubRegion']]
 
 #%%
-aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.geojson", driver="GeoJSON") # export to GeoJSON
-#%%
-aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.shp", driver="ESRI Shapefile") # export to GeoJSON
-
-#%%
 
 # Read the shapefile from Google Drive
 shp_path = "CV_subregion.shp"
@@ -196,63 +191,87 @@ HR = dissolved.reset_index()
 shp_path = "gwpa_leaching.shp"
 gdf_gwpa_lch = gpd.read_file(config.data_processed / 'kml' / shp_path)
 gdf_gwpa_lch = gdf_gwpa_lch.to_crs('EPSG:4326')
-#%%
-def get_darplot(reg = 1, HR = HR, gdf_gwpa_lch = gdf_gwpa_lch):
-    i = reg
-    # Create the plot
-    fig = plt.figure(figsize=(14, 10))
-    fig.set_facecolor("white") # set the background color to gray
-
-    out = plt.scatter(
-        aemres2['geometry'].x, aemres2['geometry'].y, c=aemres2.Resistivity, 
-        s=.7, 
-        # cmap=cmap,
-        # norm=norm,
-        zorder=1
-    )
-
-    # Plot the shapefile using geopandas.plot() method
-    gdf_gwpa_lch.plot(ax=plt.gca(), facecolor='none', edgecolor='red', linewidth=.7)
-
-    # Plot the shapefile using geopandas.plot() method
-    HR.plot(ax=plt.gca(), facecolor='none', edgecolor='orange', linewidth=1)
-
-    # plt.xlabel("Easting (m)")
-    # plt.ylabel("Northing (m)")
-    cbar = plt.colorbar(out, fraction=0.03, orientation='horizontal')
-    cbar.set_label('Depth Average Resistivity', size = 14) 
-    plt.xlim(HR.bounds.iloc[i].minx,HR.bounds.iloc[i].maxx)
-    plt.ylim(HR.bounds.iloc[i].miny,HR.bounds.iloc[i].maxy)
-    plt.axis(False)
 
 #%%
-get_darplot(reg = 2, HR = HR, gdf_gwpa_lch = gdf_gwpa_lch)
-#%%
-get_darplot(reg = 1, HR = HR, gdf_gwpa_lch = gdf_gwpa_lch)
-#%%
-get_darplot(reg = 3, HR = HR, gdf_gwpa_lch = gdf_gwpa_lch)
-#%%
-get_darplot(reg = 4, HR = HR, gdf_gwpa_lch = gdf_gwpa_lch)
+# Perform a spatial join to get the points that fall within the gdf_gwpa_lch polygons
+aemres2_within_gdf_gwpa_lch = gpd.sjoin(aemres2, gdf_gwpa_lch, how='inner', op='within')
+
+# Group points by gdf_gwpa_lch index and calculate mean resistivity for each group
+mean_resistivity_per_row = aemres2_within_gdf_gwpa_lch.groupby('index_right')['Resistivity'].mean()
+
+# Generate bin edges with an interval of 10
+bin_edges = np.arange(0, 110, 5)
+
+# Plot the histogram
+plt.hist(mean_resistivity_per_row, bins=bin_edges, edgecolor='black', color='orange')
+plt.xlabel('Mean depth average resistivity', size =14)
+plt.ylabel('Frequency', size = 14)
+plt.xlim(0, 100)
+plt.title('Histogram of mean resistivity values within leaching GWPA')
+plt.show()
 
 
 # %%
-# Save figure as PNG
-def get_kml_spatial(cv,kk, aemres_tmp,output_name = 'depth_average_resistivity'):
-    kk.savefig(config.data_processed / f'{output_name}.png', dpi=300, bbox_inches='tight')
+bin_edges = np.arange(0, 110, 5)
 
-    aemres_tmp = aemres_tmp.to_crs(epsg=4326) # Reproject to WGS84
-    # Define image bounds and georeference information
-    north = cv.geometry.total_bounds[3]
-    south = cv.geometry.total_bounds[1]
-    east = cv.geometry.total_bounds[2]
-    west = cv.geometry.total_bounds[0]
-    width = kk.get_size_inches()[0] * kk.dpi
-    height = kk.get_size_inches()[1] * kk.dpi
-    georef = f'<GroundOverlay>\n<name>{output_name}</name>\n<Icon>\n<href>file:////Users/szalam/Library/CloudStorage/GoogleDrive-szalam@stanford.edu/Shared drives/GWAttribution/data/processed/{output_name}.png</href>\n</Icon>\n<LatLonBox>\n<north>{north}</north>\n<south>{south}</south>\n<east>{east}</east>\n<west>{west}</west>\n<rotation>0.0</rotation>\n</LatLonBox>\n</GroundOverlay>'
-
-    # Save georeference information to KML file
-    with open(config.data_processed /f'{output_name}.kml', 'w') as f:
-        f.write(georef)
+# Plot the histogram
+plt.hist(aemres2['Resistivity'], bins=bin_edges, edgecolor='black', color='orange')
+plt.xlabel('Depth average resistivity', size =14)
+plt.ylabel('Frequency', size =14)
+plt.xlim(0, 100)
+plt.title('Histogram of resistivity in Central Valley')
+plt.show()
 # %%
-get_kml_spatial(cv,depth_avg_res, aemres_tmp,output_name = 'depth_average_resistivity')
 
+# Separate GWPA for different HR and then plot histogram
+HR_sel = 'TL'
+# Make sure both GeoDataFrames have the same CRS
+assert HR.crs == gdf_gwpa_lch.crs, "GeoDataFrames must have the same CRS"
+
+# Get the geometry corresponding to the 'SC' value in the HR GeoDataFrame
+hr_geometry = HR.loc[HR['HR'] == HR_sel, 'geometry'].iloc[0]
+
+# Create a new GeoDataFrame with only the 'SC' geometry
+hr_gdf = gpd.GeoDataFrame([{'HR': HR_sel, 'geometry': hr_geometry}], crs=HR.crs)
+
+# Perform a spatial join between the gdf_gwpa_lch GeoDataFrame and the 'SC' geometry
+gdf_gwpa_lch_within_hr = gpd.sjoin(gdf_gwpa_lch, hr_gdf, op='within', how='inner')
+
+# Reset the index of the resulting GeoDataFrame
+gdf_gwpa_lch_within_hr.reset_index(drop=True, inplace=True)
+
+# Drop the 'index_right' and 'HR' columns from the gdf_gwpa_lch_within_hr GeoDataFrame
+gdf_gwpa_lch_within_hr = gdf_gwpa_lch_within_hr.drop(columns=['index_right', 'HR'])
+
+# Perform a spatial join to get the points that fall within the gdf_gwpa_lch polygons
+aemres2_within_gdf_gwpa_lch_hr = gpd.sjoin(aemres2, gdf_gwpa_lch_within_hr, how='inner', op='within')
+
+# Group points by gdf_gwpa_lch index and calculate mean resistivity for each group
+mean_resistivity_per_row_hr = aemres2_within_gdf_gwpa_lch_hr.groupby('index_right')['Resistivity'].mean()
+
+# Generate bin edges with an interval of 10
+bin_edges = np.arange(0, 110, 5)
+
+# Plot the histogram
+plt.hist(mean_resistivity_per_row_hr, bins=bin_edges, edgecolor='black', color='orange')
+plt.xlabel('Mean depth average resistivity', size =14)
+plt.ylabel('Frequency', size = 14)
+plt.xlim(0, 100)
+plt.title('Histogram of mean resistivity values within leaching GWPA')
+plt.show()
+
+
+# %%
+bin_edges = np.arange(0, 110, 5)
+
+# Plot the histogram
+plt.hist(aemres2['Resistivity'], bins=bin_edges, edgecolor='black', color='orange')
+plt.xlabel('Depth average resistivity', size =14)
+plt.ylabel('Frequency', size =14)
+plt.xlim(0, 100)
+plt.title('Histogram of resistivity in Central Valley')
+plt.show()
+# %%
+# Export the GeoDataFrame to a shapefile
+HR.to_file(config.data_raw / "shapefile/HR_cv.shp")
+# %%

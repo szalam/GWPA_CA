@@ -1,0 +1,118 @@
+#================================================================================
+# This script analyzies the relationship between animal population and nitrate
+# for wells when they have almost similar conductivity
+#================================================================================
+#%%
+import sys
+sys.path.insert(0,'src')
+sys.path.insert(0, 'src/data')
+
+import pandas as pd
+import config
+import numpy as np
+import matplotlib.pyplot as plt 
+import ppfun as dp
+from scipy import stats
+import seaborn as sns
+import matplotlib as mpl
+
+df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
+#%%
+lyrs = 4
+rad_well = 2
+cond_type_used = 'Resistivity'
+
+if cond_type_used == 'Conductivity':
+    aem_type = 'Conductivity'
+else:
+    aem_type = 'Resistivity'
+
+
+def filter_dataframe(df, well_data_source=None, measurement_count=None, city_inside_outside=None, subregion=None,
+                      well_type=None, crop_threshold=None, exclude_saline_subregions=None, min_mean_nitrate=None):
+    
+    if well_data_source:
+        df = df[df.well_data_source == well_data_source]
+    if measurement_count:
+        df = df[df.measurement_count > measurement_count]
+    if city_inside_outside:
+        df = df[df.city_inside_outside == city_inside_outside]
+    if subregion:
+        df = df[df['SubRegion'] == subregion]
+    if well_type:
+        df = df[df.well_type == well_type] # 'Water Supply, Other', 'Municipal', 'Domestic'
+    if crop_threshold:
+        df = df[df.All_crop_2015 >= crop_threshold]
+    if exclude_saline_subregions:
+        exclude_subregions = [14, 15, 10, 19,18, 9,6]
+        df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_{rad_well}miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+    if min_mean_nitrate:
+        df = df[df.mean_nitrate > min_mean_nitrate]
+        
+    return df
+
+df = filter_dataframe(df_main, well_data_source='GAMA', well_type= 'Domestic', subregion= 16, exclude_saline_subregions = True)
+
+#%%
+plt.scatter(df[f'{cond_type_used}_lyrs_{lyrs}'], df.mean_nitrate, s = 1.5, c = 'red')
+plt.ylim(0 ,100)
+plt.xlabel(f'{aem_type}')
+plt.ylabel('Nitrate')
+
+# %%
+if aem_type == 'Resistivity':
+    df = df[df[f'{cond_type_used}_lyrs_{lyrs}']<80]
+
+# Bin Conductivity into intervals of .05
+if aem_type == 'Conductivity':
+    df = df[df[f'{cond_type_used}']<1]
+    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}_lyrs_{lyrs}'], 
+                                       np.arange(0, 0.2,.01))
+if aem_type == 'Resistivity':
+    df['Conductivity_binned'] = pd.cut(df[f'{cond_type_used}_lyrs_{lyrs}'], 
+                                       np.arange(0, df[f'{cond_type_used}_lyrs_{lyrs}'].max()+1,5))
+
+#%%
+df_crop_l = df[df.All_crop_2017<df.All_crop_2017.describe()['25%']]  # df.All_crop_2017.describe()['25%']
+df_crop_h = df[df.All_crop_2017>df.All_crop_2017.describe()['75%']]  # df.All_crop_2017.describe()['75%']
+
+def plot_box_and_whisker(df, aem_type):
+    sns.boxplot(x='Conductivity_binned', y='mean_nitrate', data=df, width=0.5, color = 'orange')
+    
+    plt.xlabel(f'Depth Average {aem_type} (\u2126-m)', fontsize = 13)
+    plt.ylabel('Nitrate-N [mg/l]', fontsize =13)
+    plt.tick_params(axis='both', which='major', labelsize=10)
+
+    plt.yscale('log')
+    plt.ylim(0.01, 1500)
+
+    plt.xticks(rotation=90)
+
+    plt.show()
+
+plot_box_and_whisker(df_crop_l,aem_type)
+plot_box_and_whisker(df_crop_h,aem_type)
+plot_box_and_whisker(df,aem_type)
+
+# %%
+df_cafo_l = df[df.CAFO_Population_5miles<df_main.CAFO_Population_5miles.describe()['50%']]  # df.All_crop_2017.describe()['25%']
+df_cafo_h = df[df.CAFO_Population_5miles>df_main.CAFO_Population_5miles.describe()['50%']]  # df.All_crop_2017.describe()['75%']
+
+def plot_box_and_whisker(df, aem_type):
+    sns.boxplot(x='Conductivity_binned', y='mean_nitrate', data=df, width=0.5, color = 'orange')
+    
+    plt.xlabel(f'Depth Average {aem_type} (\u2126-m)', fontsize = 13)
+    plt.ylabel('Nitrate-N [mg/l]', fontsize =13)
+    plt.tick_params(axis='both', which='major', labelsize=10)
+
+    plt.yscale('log')
+    plt.ylim(0, 1500)
+
+    plt.xticks(rotation=90)
+
+    plt.show()
+
+plot_box_and_whisker(df_cafo_l,aem_type)
+plot_box_and_whisker(df_cafo_h,aem_type)
+plot_box_and_whisker(df,aem_type)
+# %%

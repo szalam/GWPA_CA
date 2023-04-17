@@ -15,6 +15,7 @@ import warnings
 import fiona
 import pandas as pd
 import ppfun as dp
+import numpy as np
 import geopandas as gpd
 from tqdm import tqdm
 from contextlib import redirect_stdout
@@ -30,7 +31,7 @@ well_src       = 'UCD'          # options: UCD, GAMA
 aem_region = [4, 5, 6, 7] 
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
-rad_buffer     = 2              # well buffer radius in miles
+rad_buffer     = 1              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 
@@ -38,8 +39,12 @@ buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: crea
 #=========================== Import water quality data ==========================
 if well_src == 'GAMA':
     # read gama excel file
-    df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
-    df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    # df = pd.read_excel(config.data_gama / 'TULARE_NO3N.xlsx',engine='openpyxl')
+    # df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+    # df['DATE']= pd.to_datetime(df['DATE'])
+    file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+    df = dp.get_polut_df(file_sel = file_polut)
+    df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
     df['DATE']= pd.to_datetime(df['DATE'])
 
 if well_src == 'UCD':
@@ -61,7 +66,6 @@ def aem_info(file_aem, aem_src, aem_value_type, aem_reg, lyr_num):
     elif aem_src == 'ENVGP':
         interpolated_aem_file = f'{aem_value_type}_lyr_{lyr_num}.npy'
     return aem_fil_loc, interpolated_aem_file
-
 lyr_num = 0
 for i in tqdm(range(20)):
     aem_args = []
@@ -109,7 +113,6 @@ for i in tqdm(range(20)):
             # gdf_wellbuffer.to_pickle(config.data_processed / f'Well_buffer_shape' / f"{well_src}_buffers_{(rad_buffer)}mile.pkl")
             gdf_wellbuffer.to_file(config.data_processed / f'Well_buffer_shape' / f"{well_src}_buffers_{(rad_buffer)}mile.shp", driver='ESRI Shapefile')
 
-
     #============================ AEM values in the well buffer ===============================
 
     def get_aem_mean_in_well_buffer(gdfres, wqnodes_2m_gpd, aem_value_type):
@@ -155,7 +158,7 @@ for i in tqdm(range(20)):
     if lyr_num != 1:
         # Drop geometry column
         aem_inside_buffer2 = aem_inside_buffer.drop(['lat','lon','geometry'], axis=1)
-        aem_inside_buffer2.rename(columns={'Conductivity':f'Conductivity_depthwtd_lyr{lyr_num}'}, inplace=True)
+        aem_inside_buffer2.rename(columns={'Conductivity':f'Conductivity_depthwtd_lyr{lyr_num}_rad_{rad_buffer}mile'}, inplace=True)
         aemvalue_all_layer = aemvalue_all_layer.merge(aem_inside_buffer2, on='well_id')
 
 # Export CSV with AEM values

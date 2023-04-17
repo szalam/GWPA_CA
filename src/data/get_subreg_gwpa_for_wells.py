@@ -57,6 +57,7 @@ df_gama = df_gama.drop_duplicates()
 # df_gama.rename(columns = {'GM_WELL_ID':'well_id', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'well_type','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
 
 points_with_subreg_gama = get_subreg_well(df_gama, cv_subreg)
+#%%
 #======================
 # UCD data
 #======================

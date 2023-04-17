@@ -31,12 +31,12 @@ aem_src        = 'DWR'          # options: DWR, ENVGP
 well_src       = 'GAMA'          # options: UCD, GAMA
 aem_regions = [4, 5, 6, 7] # list of all regions
 # aem_reg2       = 4              # use only if two regions are worked with
-aem_lyr_lim    = 4              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
+aem_lyr_lim    = 9              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
 rad_buffer     = 2              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
-cond_thresh    = 0.05
+cond_thresh    = 1/16.7
 #==================================================================================
 #============================ Import AEM data ===============================
 

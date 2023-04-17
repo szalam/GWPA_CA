@@ -20,6 +20,7 @@ df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 #%%
 df = df_main.copy()
 lyrs = 9
+rad_well = 2
 cond_type_used = f'Resistivity_lyrs_{lyrs}' #'Conductivity_lyrs_9' # 'Conductivity_lyrs_1'
 # cond_type_used = 'Conductivity_lyrs_9'
 if cond_type_used == 'Conductivity_lyrs_9' or cond_type_used == 'Conductivity_lyrs_1':
@@ -36,16 +37,18 @@ df = df[df.well_data_source == 'GAMA']
 # df = df[df['SubRegion'] != 14]
 # df = df[df['SubRegion']==6]
 # df = df[df[f'thickness_abovCond_{round(.1*100)}'] == 0 ]
-# well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
-# df = df[df.well_type ==  well_type_select] 
+well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
+df = df[df.well_type ==  well_type_select] 
 # df = df[df.All_crop_2015 >= 2.030499e+08]
 
 # Remove high salinity regions
 exclude_subregions = [14, 15, 10, 19,18, 9,6]
 # filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
-df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_{rad_well}miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
 # df = df[df.mean_nitrate>10]
 # df = df.dropna()
+
+
 
 # df = df[['well_id','Conductivity','mean_nitrate','area_wt_sagbi', 'Cafo_Population_5miles','Average_ag_area','change_per_year','total_ag_2010','APPROXIMATE LATITUDE', 'APPROXIMATE LONGITUDE','city_inside_outside']]
 # df = df.head(1000)
@@ -79,7 +82,7 @@ plt.show()
 
 # %%
 if aem_type == 'Resistivity':
-    df = df[df[f'{cond_type_used}']<70]
+    df = df[df[f'{cond_type_used}']<80]
 
 # Bin Conductivity into intervals of .05
 if aem_type == 'Conductivity':
@@ -93,15 +96,17 @@ if aem_type == 'Resistivity':
 # mpl.rcParams.update({'font.size': 14})
 
 # Create a box and whisker plot using Seaborn
-sns.boxplot(x='Conductivity_binned', y='mean_nitrate', data=df, width=0.5)
+sns.boxplot(x='Conductivity_binned', y='mean_nitrate', data=df, width=0.5, color = 'orange')
 
 # Add x and y labels
-plt.xlabel(f'{aem_type}', fontsize = 13)
-plt.ylabel('Nitrate [mg/l]', fontsize =13)
+plt.xlabel(f'Depth Average {aem_type} (\u2126-m)', fontsize = 13)
+plt.ylabel('Nitrate-N [mg/l]', fontsize =13)
 plt.tick_params(axis='both', which='major', labelsize=10)
 
+# Set y-axis to log scale
+plt.yscale('log')
 # Set y-axis limit to 0 to 100
-plt.ylim(0, 40)
+plt.ylim(0, 1500)
 
 # Rotate x tick labels for better readability
 plt.xticks(rotation=90)
@@ -125,26 +130,85 @@ plt.title(f'{aem_type} Histogram')
 plt.show()
 
 #%%
-#=====================
-# Find if there is a statistical difference between nitrate values for two ranges of conductivity
-if aem_type == 'Conductivity':
-    conductivity_cutoff = 0.1
-if aem_type == 'Resistivity':
-    conductivity_cutoff = 35
+# Test if the correlation coefficient is significant 
 
-# Split the data into two groups based on conductivity
-low_cond = df[df[f'{cond_type_used}'] < conductivity_cutoff]['mean_nitrate']
-high_cond = df[df[f'{cond_type_used}'] >= conductivity_cutoff]['mean_nitrate']
+# Remove rows with missing data
+cleaned_df = df[[f'{cond_type_used}', 'mean_nitrate']].dropna()
 
-# Perform a two-sample t-test
-t_stat, p_value = stats.ttest_ind(low_cond, high_cond, equal_var=False)
+spearman_correlation_coefficient, spearman_p_value = stats.spearmanr(cleaned_df[f'{cond_type_used}'], cleaned_df['mean_nitrate'])
 
-# Interpret the results
-if p_value < 0.05:
-    print("The difference in mean nitrate between low and high conductivity is statistically significant (p-value = {})".format(p_value))
+print(f"Spearman Correlation Coefficient: {spearman_correlation_coefficient}")
+print(f"Spearman P-value: {spearman_p_value}")
+
+alpha = 0.05
+if spearman_p_value < alpha:
+    print("The Spearman correlation is significant.")
 else:
-    print("The difference in mean nitrate between low and high conductivity is not statistically significant (p-value = {})".format(p_value))
+    print("The Spearman correlation is not significant.")
 
+
+#%%
+#=====================
+# Test for statistical differences in mean
+
+df_tmp = df.copy()
+results = []
+
+# Loop over conductivity_cutoff values from 5 to 40 at 5 intervals
+for conductivity_cutoff in range(10, 50, 5):
+    # Split the data into two groups based on conductivity
+    low_cond = df_tmp[df_tmp[f'{cond_type_used}'] < conductivity_cutoff]['mean_nitrate']
+    high_cond = df_tmp[df_tmp[f'{cond_type_used}'] >= conductivity_cutoff]['mean_nitrate']
+
+    # Remove any non-numeric data and missing values
+    low_cond = low_cond.apply(pd.to_numeric, errors='coerce').dropna()
+    high_cond = high_cond.apply(pd.to_numeric, errors='coerce').dropna()
+
+    # Perform a two-sample t-test
+    t_stat, p_value = stats.ttest_ind(low_cond, high_cond, equal_var=False)
+
+    # Interpret the results
+    if p_value < 0.05:
+        significance = "significant"
+    else:
+        significance = "not significant"
+
+    results.append([conductivity_cutoff, p_value, significance])
+
+# Create a DataFrame with the results and display it
+results_df = pd.DataFrame(results, columns=['cutoff', 'p_value', 'significance'])
+print(results_df)
+
+#%%
+# Test for statistical differences in median
+
+df_tmp = df.copy()
+results = []
+
+# Loop over conductivity_cutoff values from 5 to 40 at 5 intervals
+for conductivity_cutoff in range(5, 45, 5):
+    # Split the data into two groups based on conductivity
+    low_cond = df_tmp[df_tmp[f'{cond_type_used}'] < conductivity_cutoff]['mean_nitrate']
+    high_cond = df_tmp[df_tmp[f'{cond_type_used}'] >= conductivity_cutoff]['mean_nitrate']
+
+    # Remove any non-numeric data and missing values
+    low_cond = low_cond.apply(pd.to_numeric, errors='coerce').dropna()
+    high_cond = high_cond.apply(pd.to_numeric, errors='coerce').dropna()
+
+    # Perform a Mann-Whitney U test
+    u_stat, p_value = stats.mannwhitneyu(low_cond, high_cond, alternative='two-sided')
+
+    # Interpret the results
+    if p_value < 0.05:
+        significance = "significant"
+    else:
+        significance = "not significant"
+
+    results.append([conductivity_cutoff, p_value, significance])
+
+# Create a DataFrame with the results and display it
+results_df = pd.DataFrame(results, columns=['cutoff', 'p_value', 'significance'])
+print(results_df)
 
 
 # %%

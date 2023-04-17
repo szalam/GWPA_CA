@@ -1,0 +1,61 @@
+library(dplyr)
+
+file_path <- file.path("/Users/szalam/Library/CloudStorage/GoogleDrive-szalam@stanford.edu/Shared drives/GWAttribution/data/processed/aem_values")
+
+merge_dataframes <- function(file_path, dtype_sel, aem_lyr_lim_all, rad_buffer_all, cond_thresh_values) {
+  
+  n <- 1
+  for (aem_lyr_lim in aem_lyr_lim_all) {
+    for (rad_buffer in rad_buffer_all) {
+      for (cond_thresh in cond_thresh_values) {
+        # Construct the file path
+        file_path <- file.path("/Users/szalam/Library/CloudStorage/GoogleDrive-szalam@stanford.edu/Shared drives/GWAttribution/data/processed/aem_values", paste0("Thickness_abovThresh_DWR_wellsrc_", dtype_sel, "_rad_", rad_buffer, "mile_lyrs_", aem_lyr_lim, "_condThresh_", round(cond_thresh*100), ".csv"))
+        
+        # Read the DataFrame from the CSV file
+        df_thickness <- read.csv(file_path)
+        
+        # Check if the column exists
+        old_col_name <- "Conductivity_lyrs_9"
+        old_col_name2 <- paste0("thickness_abovCond_", round(cond_thresh*100))
+        new_col_name <- paste0("thickness_abovCond_", round(cond_thresh*100), "_lyrs_", aem_lyr_lim, "_rad_", rad_buffer, "miles")
+        
+        if (old_col_name %in% colnames(df_thickness)) {
+          # Rename the column to the new name
+          colnames(df_thickness)[which(colnames(df_thickness) == old_col_name)] <- new_col_name
+        }
+        
+        if (old_col_name2 %in% colnames(df_thickness)) {
+          # Rename the column to the new name
+          colnames(df_thickness)[which(colnames(df_thickness) == old_col_name2)] <- new_col_name
+        }
+        
+        # Select the columns we want to keep
+        df_thickness <- df_thickness[c("well_id", new_col_name)]
+        
+        if(n==1){df = df_thickness}
+        if(n>1){
+          # Merge with the main DataFrame
+          df <- merge(df, df_thickness, by = "well_id", all.x = TRUE)
+        }
+        n = n + 1
+      }
+    }
+  }
+  return(df)
+}
+
+# for dtype_sel = 'GAMA'
+df1 <- merge_dataframes(file_path, dtype_sel = 'GAMA', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+
+# for dtype_sel = 'UCD'
+df2 <- merge_dataframes(file_path, dtype_sel = 'UCD', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+
+# Merge the dataframes
+df <- rbind(df1, df2)
+
+dim(df)
+# Construct the file path
+file_path_out = paste0(file_path, "/thickness_combined_rad_cond_lyrs.csv")
+# Export the DataFrame as a CSV file
+write.csv(df, file_path_out, row.names = FALSE)
+

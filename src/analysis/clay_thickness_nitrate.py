@@ -22,8 +22,10 @@ import geopandas as gpd
 df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 #%%
 df = df_main.copy()
-plt_cond = 0.05      # Threshold condoctivity above which thickness calculated
-lyrs = 4
+plt_cond = 0.1      # Threshold condoctivity above which thickness calculated
+lyrs = 9
+rad_buffer = 2
+
 #%%
 df = df[df.well_data_source == 'GAMA']
 # df = df[df['SubRegion'] != 14]
@@ -31,13 +33,14 @@ df = df[df.well_data_source == 'GAMA']
 # df = df[df.measurement_count > 4]
 # df = df[df.city_inside_outside == 'outside_city']
 well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
+# well_type_select = 'All wells'
 df = df[df.well_type ==  well_type_select] 
 # df = df[pd.isna(df.GWPAType)==True] # False for areas with GWPA
 
 # Remove high salinity regions
 exclude_subregions = [14, 15, 10, 19,18, 9,6]
 # filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
-df = df[(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_9'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+df = df[(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
 # df = df[(df[f'thickness_abovCond_{round(0.1*100)}_lyrs_{lyrs}'] == 0)]
 # df = df[(df[f'thickness_abovCond_{round(0.08*100)}_lyrs_{lyrs}'] == 0)]
         
@@ -53,7 +56,7 @@ layer_depths = gi.dwr_aem_depths()
 cond_threshold_fine_list = [0.01,0.02,0.03, 0.05,0.06,0.07, 0.08, 0.1, 0.13, 0.15, 0.18, 0.2, 0.25]
 #%%
 
-plt.scatter(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}'], df.mean_nitrate, s = 1.5)
+plt.scatter(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles'], df.mean_nitrate, s = 1.5)
 plt.ylim(0 ,40)
 # plt.xlim(0 ,100)
 # plt.title(f'Well type: {well_type_select}')
@@ -63,7 +66,7 @@ plt.ylabel('Nitrate-N')
 
 #%%
 import statsmodels.api as sm
-x = df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}']
+x = df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles']
 y = df.mean_nitrate
 
 lowess = sm.nonparametric.lowess(y, x, frac=.2) # adjust frac to control smoothing
@@ -77,34 +80,57 @@ plt.show()
 #%%
 # Boxplot
 # create a new column in the dataframe to map depth values to range categories
-df['Depth_range'] = pd.cut(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}'], 
+df['Depth_range'] = pd.cut(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles'], 
                         #    bins=[-1, 0, 5, 15, 25, 35], 
-                        #    bins=[-1, 0, 5, 10, 15, 25, 35], 
+                           bins=[-1, 0, 5, 10, 15, 25, 35], 
                         #    bins=[-1, 0, 10, 25, 35], 
                         #    labels=['0', '(0,5]', '(5,15]', '(15,25]', '(25,35)'])
-                            # labels=['0', '(0,5]', '(5,10]', '(10,15]', '(15,25]', '(25,35]'])
+                            labels=['0', '(0,5]', '(5,10]', '(10,15]', '(15,25]', '(25,35]'])
                             # labels=['0', '(0,10]', '(10,25]','(25,35]'])
-                              bins=[-1, 0, 3, 6, 10],
-                              labels=['0', '(0,3]', '(3,6]','(6,10]'])
+                            #   bins=[-1, 0, 3, 6, 10],
+                            #   labels=['0', '(0,3]', '(3,6]','(6,10]'])
 
 
 # create the boxplot using seaborn
+# sns.boxplot(x='Depth_range', y='mean_nitrate', data=df, 
+#             palette='viridis', linewidth=1)
 sns.boxplot(x='Depth_range', y='mean_nitrate', data=df, 
-            palette='viridis', linewidth=1)
+            color = 'orange', linewidth=1,saturation=1.0)
 
-# set the y-axis limits
-plt.ylim(0, 40)
+# # set the y-axis limits
+# plt.ylim(0, 40)
+
+# Set y-axis to log scale
+plt.yscale('log')
 
 # set the title and axis labels
 plt.title(f'Well type: {well_type_select}')
 plt.xlabel(f'Thickness of layers with resistivity <= {1/plt_cond}')
-plt.ylabel('Nitrate-N')
+plt.ylabel('Nitrate-N (mg/L)')
 
 # display the plot
 plt.show()
 
 
+#%%
+#%%
+# Test if the correlation coefficient is significant 
+cond_vals = [0.05, 0.06, 0.07, 0.08, 0.1, 0.15]
+for cond_vals_sel in cond_vals:
+    # Remove rows with missing data
+    cleaned_df = df[[f'thickness_abovCond_{round(cond_vals_sel*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles', 'mean_nitrate']].dropna()
 
+    spearman_correlation_coefficient, spearman_p_value = stats.spearmanr(cleaned_df[f'thickness_abovCond_{round(cond_vals_sel*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles'], cleaned_df['mean_nitrate'])
+
+    print(f'Resistivity: {1/cond_vals_sel}')
+    print(f"Spearman Correlation Coefficient: {spearman_correlation_coefficient}")
+    print(f"Spearman P-value: {spearman_p_value}")
+
+    alpha = 0.05
+    if spearman_p_value < alpha:
+        print("The Spearman correlation is significant.")
+    else:
+        print("The Spearman correlation is not significant.")
 
 
 

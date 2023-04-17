@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0,'src')
 import config
 import pandas as pd
+import numpy as np
 
 # list of all csv files
 csv_files_ucd = [f'{config.data_processed}/well_stats/ucdnitrate_stats.csv', 
@@ -15,7 +16,8 @@ csv_files_ucd = [f'{config.data_processed}/well_stats/ucdnitrate_stats.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_4.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_6.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_9.csv',
-            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_layerwide.csv']
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_layerwide.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_1mile_layerwide.csv']
 
 csv_files_gama = [f'{config.data_processed}/well_stats/gamanitrate_stats.csv', 
             f'{config.data_processed}/gwdepth_wellbuff/GWDepth_wellsrc_GAMA_rad_2mile.csv', 
@@ -26,7 +28,8 @@ csv_files_gama = [f'{config.data_processed}/well_stats/gamanitrate_stats.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_4.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_6.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_9.csv',
-            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_layerwide.csv']
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_layerwide.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_1mile_layerwide.csv']
 
 def get_combined_dataset(csv_files):
     # read the first csv file
@@ -75,9 +78,11 @@ columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'CAFO_Population_2miles','CAFO_Population_5miles', 'Conductivity_lyrs_9',
        'Conductivity_lyrs_6','Conductivity_lyrs_4','Conductivity_lyrs_1','well_data_source']
 
-for i in range(1,21):
-    column_name = f'Conductivity_depthwtd_lyr{i}'
+for i in range(2,21):
+    column_name = f'Conductivity_depthwtd_lyr{i}_rad_2mile'
+    column_name2 = f'Conductivity_depthwtd_lyr{i}_rad_1mile'
     columns_to_keep.append(column_name)
+    columns_to_keep.append(column_name2)
 
 df = df[columns_to_keep]
 
@@ -187,74 +192,111 @@ df = pd.merge(df, df_cdl_all, on='well_id', how='outer')
 
 # Merge city in/out information
 df_city_inout = pd.read_csv(config.data_processed / "well_inout_city/well_inout_city.csv")
-#%%
-# merge the dataframe with the current csv file based on well_id
-df = pd.merge(df, df_city_inout, on='well_id', how='outer')
 
+# merge the dataframe with the current csv file based on well_id
+df = pd.merge(df, df_city_inout, on='well_id', how='left')
+#%%
 # Merge subregion information information
 df_subreg = pd.read_csv(config.data_processed / "well_in_subregions.csv")
-# merge the dataframe with the current csv file based on well_id
-df = pd.merge(df, df_subreg, on='well_id', how='outer')
 
+# Drop duplicates based on well_id in the df_subreg DataFrame
+df_subreg = df_subreg.drop_duplicates(subset='well_id')
+# merge the dataframe with the current csv file based on well_id
+df = pd.merge(df, df_subreg, on='well_id', how='left')
+#%%
 # Merge gwpa information
 df_gwpa = pd.read_csv(config.data_processed / "well_in_gwpa.csv")
+
+# Drop duplicates based on well_id in the df_subreg DataFrame
+df_gwpa = df_gwpa.drop_duplicates(subset='well_id')
 # merge the dataframe with the current csv file based on well_id
-df = pd.merge(df, df_gwpa, on='well_id', how='outer')
+df = pd.merge(df, df_gwpa, on='well_id', how='left')
 
-# Read and merge the thickness for different conductivity threshold
+#%%
+# df = df2.copy()
+df_thickness = pd.read_csv(config.data_processed / 'aem_values/thickness_combined_rad_cond_lyrs.csv')
+df = pd.merge(df, df_thickness, on='well_id', how='left')
 
-def get_thickness_data(df, aem_lyr_lim = 4, dtype_sel = 'GAMA',rad_buffer = 2):
-    # Set the values of cond_thresh to run the code for
-    cond_thresh_values = [0.05, 0.08, 0.10, 0.15]
-    # Loop over the cond_thresh values and run the code for each value
-    for cond_thresh in cond_thresh_values:
-        # Read the DataFrame from the CSV file
-        df_thickness = pd.read_csv(config.data_processed / f"aem_values/Thickness_abovThresh_DWR_wellsrc_{dtype_sel}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}_condThresh_{round(cond_thresh*100)}.csv")
-        # Check if the column exists
-        old_col_name = 'Conductivity_lyrs_9'
-        old_col_name2 = f'thickness_abovCond_{round(cond_thresh*100)}'
-        new_col_name = f'thickness_abovCond_{round(cond_thresh*100)}_lyrs_{aem_lyr_lim}_rad_{rad_buffer}miles'
-        if old_col_name in df_thickness.columns:
-            # Rename the column to the new name
-            df_thickness = df_thickness.rename(columns={old_col_name: new_col_name})
-        if old_col_name2 in df_thickness.columns:
-            # Rename the column to the new name
-            df_thickness = df_thickness.rename(columns={old_col_name2: new_col_name})
+#%% import the redox condition
+# List of file names
+file_redox = ["ProbDOpt5ppm_Deep", "ProbDOpt5ppm_Shallow", "ProbMn50ppb_Deep", "ProbMn50ppb_Shallow"]
 
-        # Select the columns we want to keep
-        df_thickness = df_thickness[['well_id', new_col_name]]
+# Dictionary to store the dataframes
+df_dict = {}
 
-        # Merge with the main DataFrame
-        df = pd.merge(df, df_thickness, on='well_id', how='outer')
+# Load each file into a separate dataframe
+for file_name in file_redox:
+    df_tmp = pd.read_csv(config.data_processed / 'redox_Ninput_katetal/exported_csv_redox_Ninput' / f"{file_name}.csv")
+    df_tmp['mean_value'] = df_tmp['mean_value'].apply(lambda x: np.nan if x < 0 else x)
+    df_tmp = df_tmp.rename(columns={"mean_value": file_name})
+    # Replace negative values with NaN
+    df_dict[file_name] = df_tmp
 
+# Merge the dataframes based on well_id
+redox_df = df_dict[file_redox[0]]
+for file_name in file_redox[1:]:
+    redox_df = pd.merge(redox_df, df_dict[file_name], on="well_id", how="outer")
+
+# Keep only the well_id and columns with names in file_names
+columns_to_keep = ["well_id"] + file_redox
+redox_df = redox_df[columns_to_keep]
+
+df = pd.merge(df, redox_df, on='well_id', how='left')
+
+#%%
+# # Import N input data
+# df_N_input = pd.read_csv(config.data_processed / 'redox_Ninput_katetal/exported_csv_redox_Ninput' / 'N_total.csv')
+# df_N_input = df_N_input.rename(columns={"mean_value": 'N_total'})
+# df_N_input = df_N_input[['well_id','N_total']]
+# # Replace negative values with NaN
+# df_N_input['N_total'] = df_N_input['N_total'].apply(lambda x: np.nan if x < 0 else x)
+
+# # merge the dataframe with the current csv file based on well_id
+# df = pd.merge(df, df_N_input, on='well_id', how='left')
+
+def process_and_merge_data(df, file_name, column_name):
+    df_input = pd.read_csv(config.data_processed / f'redox_Ninput_katetal/exported_csv_redox_Ninput/{file_name}.csv')
+    df_input = df_input.rename(columns={"mean_value": column_name})
+    df_input = df_input[['well_id', column_name]]
+    # Replace negative values with NaN
+    df_input[column_name] = df_input[column_name].apply(lambda x: np.nan if x < 0 else x)
+    # merge the dataframe with the current csv file based on well_id
+    df = pd.merge(df, df_input, on='well_id', how='left')
     return df
 
-# df_tmp = df[['well_id']]
-# df_gama_thickness_4 = get_thickness_data(df = df_tmp,aem_lyr_lim = 4, dtype_sel = 'GAMA',rad_buffer = 2)
-# df_gama_thickness_6 = get_thickness_data(df = df_tmp,aem_lyr_lim = 6, dtype_sel = 'GAMA')
-# df_gama_thickness_9 = get_thickness_data(df = df_tmp,aem_lyr_lim = 9, dtype_sel = 'GAMA')
-# df_ucd_thickness_4 = get_thickness_data(df = df_tmp,aem_lyr_lim = 4, dtype_sel = 'UCD')
-# df_ucd_thickness_6 = get_thickness_data(df = df_tmp,aem_lyr_lim = 6, dtype_sel = 'UCD')
-# df_ucd_thickness_9 = get_thickness_data(df = df_tmp,aem_lyr_lim = 9, dtype_sel = 'UCD')
-# # Combine two dataset
-# df_thickness = pd.concat([df_gama_thickness_4, df_gama_thickness_6,df_gama_thickness_9,
-#                           df_ucd_thickness_4,df_ucd_thickness_6,df_ucd_thickness_9], axis=0)
+# Assuming df is already defined
+variables = [
+    'CAML1990_natural_water',
+    'CVHM_TextZone',
+    'DTW60YrJurgens',
+    'HiWatTabDepMin',
+    'LateralPosition',
+    'Ngw_1975',
+    'PrecipMinusETin_1971_2000_GWRP',
+    'RechargeAnnualmmWolock',
+    'RiverDist_NEAR',
+    'ScreenLength_Deep',
+    'ScreenLength_Shallow',
+    'N_total'
+]
 
-df_tmp = df[['well_id']]
-df_thickness_list = []
+for var in variables:
+    df = process_and_merge_data(df, var, var)
 
-for aem_lyr_lim in [4, 6, 9]:
-    for rad_buffer in [.5, 1, 2, 3, 4, 5]:
-        df_gama_thickness = get_thickness_data(df=df_tmp, aem_lyr_lim=aem_lyr_lim, dtype_sel='GAMA', rad_buffer=rad_buffer)
-        df_thickness_list.append(df_gama_thickness)
-
-df_thickness = pd.concat(df_thickness_list)
-df = pd.merge(df, df_thickness, on='well_id', how='outer')
 #%%
 # Use the str.replace() method to remove 'NO3_' from all values in the 'well_id' column
 df['well_id'] = df['well_id'].str.replace('NO3_', '')
-
+#%%
 # export final dataframe to csv
 df.to_csv(config.data_processed / "Dataset_processed.csv", index=False)
 
+# %%
+def check_duplicates(df):
+    # Check for duplicate 'WELL ID's in the DataFrame
+    duplicate_well_ids = df[df.duplicated(subset='well_id', keep=False)]
+
+    # Count the number of duplicate well IDs
+    duplicate_well_id_count = len(duplicate_well_ids)
+
+    print(f"Number of duplicate well IDs: {duplicate_well_id_count}")
 # %%
