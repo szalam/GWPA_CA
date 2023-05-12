@@ -12,7 +12,6 @@ import numpy as np
 import seaborn as sns
 from sklearn.metrics import mean_squared_error, r2_score
 #%%
-flag_option = 1 # 1: consider AEM, 0: do not consider AEM
 rad_well = 2 # mile
 #%%
 # Read dataset
@@ -22,7 +21,7 @@ df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
 
 # Assuming df is your DataFrame with NaN values in the 'Cafo_Population_5miles' column
 df['CAFO_Population_5miles'] = df['CAFO_Population_5miles'].fillna(0)
-# df = df[df.measurement_count>4]
+df = df[df.measurement_count>10]
 # df = df[df.well_type == 'Domestic']
 # Remove high salinity regions
 # exclude_subregions = [14, 15, 10, 19,18, 9,6]
@@ -35,12 +34,20 @@ df['CAFO_Population_5miles'] = df['CAFO_Population_5miles'].fillna(0)
 def rf_model(df, flag_option, rad_well):
     
     if flag_option == 1:
+        columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi',
+                        'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',#'CAFO_Population_5miles', 'Ngw_1975'
+                        'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition', 'RechargeAnnualmmWolock', 'RiverDist_NEAR'] # ,'Cafo_Population_5miles'
+        df2 = df[columns_to_keep]
+
+        # Removing 0 or negative values for log conversion
+        df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
+        df2.mean_nitrate = np.log(df2['mean_nitrate'])
+
+    if flag_option == 2:
         columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi'
                         'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',#'CAFO_Population_5miles','Ngw_1975',
                         'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  'RechargeAnnualmmWolock', 'RiverDist_NEAR', #'PrecipMinusETin_1971_2000_GWRP',
                         'Resistivity_lyrs_9','Resistivity_lyrs_6','Resistivity_lyrs_4'
-                        # 'thickness_abovCond_10_lyrs_9_rad_2miles','thickness_abovCond_15_lyrs_9_rad_2miles','thickness_abovCond_8_lyrs_9_rad_2miles',
-                        # 'thickness_abovCond_7_lyrs_9_rad_2miles','thickness_abovCond_6_lyrs_9_rad_2miles','thickness_abovCond_5_lyrs_9_rad_2miles'
                         ] # ,'Cafo_Population_5miles', 'gwdep',
 
         for i in range(2,21):
@@ -65,17 +72,7 @@ def rf_model(df, flag_option, rad_well):
         df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
         df2.mean_nitrate = np.log(df2['mean_nitrate'])
 
-    if flag_option == 0:
-        columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi',
-                        'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',#'CAFO_Population_5miles', 'Ngw_1975'
-                        'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition', 'RechargeAnnualmmWolock', 'RiverDist_NEAR'] # ,'Cafo_Population_5miles'
-        df2 = df[columns_to_keep]
-
-        # Removing 0 or negative values for log conversion
-        df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
-        df2.mean_nitrate = np.log(df2['mean_nitrate'])
-
-    if flag_option == 2:
+    if flag_option == 3:
         columns_to_keep = ['mean_nitrate','N_total',
                         'ProbMn50ppb_Shallow','ProbMn50ppb_Deep','DTW60YrJurgens', 'RechargeAnnualmmWolock',
                         'Resistivity_lyrs_9'] #'PrecipMinusETin_1971_2000_GWRP' ,'Cafo_Population_5miles'
@@ -85,7 +82,7 @@ def rf_model(df, flag_option, rad_well):
         df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
         df2.mean_nitrate = np.log(df2['mean_nitrate'])
 
-    if flag_option == 3:
+    if flag_option == 4:
         columns_to_keep = ['mean_nitrate',
                         'Resistivity_lyrs_9','Resistivity_lyrs_6','Resistivity_lyrs_4'] #'PrecipMinusETin_1971_2000_GWRP' ,'Cafo_Population_5miles'
         df2 = df[columns_to_keep]
@@ -113,6 +110,26 @@ def rf_model(df, flag_option, rad_well):
         df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
         df2.mean_nitrate = np.log(df2['mean_nitrate'])
 
+    if flag_option == 5:
+        columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi'
+                        'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',#'CAFO_Population_5miles','Ngw_1975',
+                        'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  'RechargeAnnualmmWolock', 'RiverDist_NEAR', #'PrecipMinusETin_1971_2000_GWRP',
+                        'Conductivity_depthwtd_lyr2_rad_2mile','Conductivity_depthwtd_lyr20_rad_2mile'
+                        ] 
+        df2 = df[columns_to_keep]
+
+        # Create a dictionary of old and new column names
+        rename_dict = {}
+        for column in columns_to_keep:
+            new_column_name = column.replace('Conductivity_depthwtd_lyr', '(Conductivity x thickness) for lyr')
+            rename_dict[column] = new_column_name
+
+        # Rename the columns
+        df2 = df[columns_to_keep].rename(columns=rename_dict)
+
+        # Removing 0 or negative values for log conversion
+        df2 = df2.applymap(lambda x: np.nan if x <= 0 else x)
+        df2.mean_nitrate = np.log(df2['mean_nitrate'])
     
     # # Remove rows with missing values
     df2 = df2.dropna()
@@ -120,8 +137,8 @@ def rf_model(df, flag_option, rad_well):
     new_column_names = {'area_wt_sagbi': 'SAGBI weighted by area',
                     'Average_ag_area': 'Avg Agricultural area',
                     'N_total': 'Nitrogen input from landscape',
-                    'ProbDOpt5ppm_Shallow': 'Prob. DO above 5ppm [Shallow]',
-                    'ProbDOpt5ppm_Deep': 'Prob. DO above 5ppm [Deep]',
+                    'ProbDOpt5ppm_Shallow': 'Prob. DO below 5ppm [Shallow]',
+                    'ProbDOpt5ppm_Deep': 'Prob. DO below 5ppm [Deep]',
                     'ProbMn50ppb_Shallow': 'Prob. of Mn above 50ppb [Shallow]',
                     'ProbMn50ppb_Deep': 'Prob. of Mn above 50ppb [Deep]',
                     'CAML1990_natural_water': 'Percent landuse as natural or water (1990)',
@@ -162,7 +179,7 @@ def rf_model(df, flag_option, rad_well):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Create and fit the random forest model
-    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf = RandomForestRegressor(n_estimators=150, random_state=42)
     rf.fit(X_train, y_train)
 
     # Make predictions on the test set
@@ -171,9 +188,10 @@ def rf_model(df, flag_option, rad_well):
     return y_test, y_pred, X, y, rf
 
 y1_test, y1_pred, X1, y1, rf1 = rf_model(df, flag_option=1, rad_well=2)
-y2_test, y2_pred, X2, y2, rf2 = rf_model(df, flag_option=0, rad_well=2)
-y3_test, y3_pred, X3, y3, rf3 = rf_model(df, flag_option=2, rad_well=2)
-y4_test, y4_pred, X4, y4, rf4 = rf_model(df, flag_option=3, rad_well=2)
+y2_test, y2_pred, X2, y2, rf2 = rf_model(df, flag_option=2, rad_well=2)
+y3_test, y3_pred, X3, y3, rf3 = rf_model(df, flag_option=3, rad_well=2)
+y4_test, y4_pred, X4, y4, rf4 = rf_model(df, flag_option=4, rad_well=2)
+y5_test, y5_pred, X5, y5, rf5 = rf_model(df, flag_option=5, rad_well=2)
 
 #%%
 # Calculate the mean absolute error of the predictions
@@ -181,28 +199,34 @@ mae1 = mean_absolute_error(y1_test, y1_pred)
 mae2 = mean_absolute_error(y2_test, y2_pred)
 mae3 = mean_absolute_error(y3_test, y3_pred)
 mae4 = mean_absolute_error(y4_test, y4_pred)
+mae5 = mean_absolute_error(y5_test, y5_pred)
 print("Mean Absolute Error: ", mae1)
 print("Mean Absolute Error: ", mae2)
 print("Mean Absolute Error: ", mae3)
 print("Mean Absolute Error: ", mae4)
+print("Mean Absolute Error: ", mae5)
 
 mse_rf1 = mean_squared_error(y1_test, y1_pred)
 mse_rf2 = mean_squared_error(y2_test, y2_pred)
 mse_rf3 = mean_squared_error(y3_test, y3_pred)
 mse_rf4 = mean_squared_error(y4_test, y4_pred)
+mse_rf5 = mean_squared_error(y5_test, y5_pred)
 print(f"MSE for RF1: {mse_rf1:.4f}")
 print(f"MSE for RF2: {mse_rf2:.4f}")
 print(f"MSE for RF3: {mse_rf3:.4f}")
 print(f"MSE for RF4: {mse_rf4:.4f}")
+print(f"MSE for RF5: {mse_rf5:.4f}")
 
 r2_rf1 = r2_score(y1_test, y1_pred)
 r2_rf2 = r2_score(y2_test, y2_pred)
 r2_rf3 = r2_score(y3_test, y3_pred)
 r2_rf4 = r2_score(y4_test, y4_pred)
+r2_rf5 = r2_score(y5_test, y5_pred)
 print(f"R-squared for RF1: {r2_rf1:.4f}")
 print(f"R-squared for RF2: {r2_rf2:.4f}")
 print(f"R-squared for RF2: {r2_rf3:.4f}")
 print(f"R-squared for RF2: {r2_rf4:.4f}")
+print(f"R-squared for RF2: {r2_rf5:.4f}")
 
 #%%
 def feature_imp_plot(rf, X):
@@ -232,6 +256,7 @@ feature_importances1 = feature_imp_plot(rf = rf1, X = X1)
 feature_importances2 = feature_imp_plot(rf = rf2, X = X2)
 feature_importances3 = feature_imp_plot(rf = rf3, X = X3)
 feature_importances4 = feature_imp_plot(rf = rf4, X = X4)
+feature_importances5 = feature_imp_plot(rf = rf5, X = X5)
 
 # %%
 feature_importances1 = feature_importances1.sort_values(by='importance', ascending=False)
@@ -266,5 +291,24 @@ plot_obs_pred_rf(y1_test,y1_pred)
 plot_obs_pred_rf(y2_test,y2_pred)
 plot_obs_pred_rf(y3_test,y3_pred)
 plot_obs_pred_rf(y4_test,y4_pred)
+plot_obs_pred_rf(y5_test,y5_pred)
 
+# %%
+# Marginal predictive power of resistivity related variables
+
+def marginal_predictive(feature_importances,X):
+
+    feature_names = X.columns.tolist()
+    # extract the indices of input features that have "Resistivity" or "Conductivity" in their name
+    resistivity_conductivity_indices = [i for i in range(len(feature_importances)) if "Resistivity" in feature_names[i] or "Conductivity" in feature_names[i]]
+
+    # calculate the marginal predictive power of the 3 resistivity-related variables
+    marginal_predictive_power = np.sum(feature_importances.iloc[resistivity_conductivity_indices].importance)
+
+    print("Marginal predictive power of resistivity-related variables:", marginal_predictive_power)
+# %%
+marginal_predictive(feature_importances2,X2)
+marginal_predictive(feature_importances1,X2)
+marginal_predictive(feature_importances4,X4)
+marginal_predictive(feature_importances5,X5)
 # %%

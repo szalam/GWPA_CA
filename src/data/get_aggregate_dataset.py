@@ -15,7 +15,14 @@ csv_files_ucd = [f'{config.data_processed}/well_stats/ucdnitrate_stats.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_1.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_4.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_6.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_0.2mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_0.5mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_1mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_1.5mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2.5mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_3mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_3.5mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_2mile_layerwide.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_UCD_rad_1mile_layerwide.csv']
 
@@ -27,7 +34,14 @@ csv_files_gama = [f'{config.data_processed}/well_stats/gamanitrate_stats.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_1.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_4.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_6.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_0.2mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_0.5mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_1mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_1.5mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2.5mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_3mile_lyrs_9.csv',
+            f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_3.5mile_lyrs_9.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_2mile_layerwide.csv',
             f'{config.data_processed}/aem_values/AEMsrc_DWR_wellsrc_GAMA_rad_1mile_layerwide.csv']
 
@@ -62,8 +76,10 @@ df_ucd['well_data_source'] = 'UCD'
 df_gama = get_combined_dataset(csv_files_gama)
 df_gama['well_data_source'] = 'GAMA'
 
+#%%
 # Combine two dataset
 df = pd.concat([df_ucd, df_gama], axis=0)
+# df = df_gama
 
 columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'APPROXIMATE LONGITUDE', 'mean_nitrate', 'median_nitrate',
@@ -75,7 +91,8 @@ columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'mean_concentration_2019-2021', 'mean_concentration_2017-2018',
        'trend','change_per_year', 'start_date', 'end_date', 
        'gwdep', 'area_wt_sagbi', 'total_obs', 'well_type',
-       'CAFO_Population_2miles','CAFO_Population_5miles', 'Conductivity_lyrs_9',
+       'CAFO_Population_2miles','CAFO_Population_5miles', 
+       'Conductivity_lyrs_9_rad_0.2mile','Conductivity_lyrs_9_rad_0.5mile','Conductivity_lyrs_9_rad_1mile','Conductivity_lyrs_9_rad_1.5mile','Conductivity_lyrs_9_rad_2mile','Conductivity_lyrs_9_rad_2.5mile','Conductivity_lyrs_9_rad_3mile','Conductivity_lyrs_9_rad_3.5mile',
        'Conductivity_lyrs_6','Conductivity_lyrs_4','Conductivity_lyrs_1','well_data_source']
 
 for i in range(2,21):
@@ -85,9 +102,16 @@ for i in range(2,21):
     columns_to_keep.append(column_name2)
 
 df = df[columns_to_keep]
-
+#%%
 # Inverse conductivity to get depth average resistivity
-df['Resistivity_lyrs_9'] = 1/df['Conductivity_lyrs_9']
+df['Resistivity_lyrs_9_rad_0_2_miles'] = 1/df['Conductivity_lyrs_9_rad_0.2mile']
+df['Resistivity_lyrs_9_rad_0_5_miles'] = 1/df['Conductivity_lyrs_9_rad_0.5mile']
+df['Resistivity_lyrs_9_rad_1_miles'] = 1/df['Conductivity_lyrs_9_rad_1mile']
+df['Resistivity_lyrs_9_rad_1_5_miles'] = 1/df['Conductivity_lyrs_9_rad_1.5mile']
+df['Resistivity_lyrs_9_rad_2_miles'] = 1/df['Conductivity_lyrs_9_rad_2mile']
+df['Resistivity_lyrs_9_rad_2_5_miles'] = 1/df['Conductivity_lyrs_9_rad_2.5mile']
+df['Resistivity_lyrs_9_rad_3_miles'] = 1/df['Conductivity_lyrs_9_rad_3mile']
+df['Resistivity_lyrs_9_rad_3_5_miles'] = 1/df['Conductivity_lyrs_9_rad_3.5mile']
 df['Resistivity_lyrs_6'] = 1/df['Conductivity_lyrs_6']
 df['Resistivity_lyrs_4'] = 1/df['Conductivity_lyrs_4']
 df['Resistivity_lyrs_1'] = 1/df['Conductivity_lyrs_1']

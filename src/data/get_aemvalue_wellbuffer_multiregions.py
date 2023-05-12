@@ -30,10 +30,10 @@ aem_src        = 'DWR'          # options: DWR, ENVGP
 well_src       = 'UCD'          # options: UCD, GAMA
 aem_regions = [4, 5, 6, 7] # list of all regions
 # aem_reg2       = 4              # use only if two regions are worked with
-aem_lyr_lim    = 6              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
+aem_lyr_lim    = 9              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
-rad_buffer     = 2              # well buffer radius in miles
+rad_buffer     = .2              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 
@@ -147,7 +147,7 @@ def get_aem_mean_in_well_buffer(gdfres, wqnodes_2m_gpd, aem_value_type):
     aem_wq_buff_aemmean = aem_wq_buff_aemmean[['well_id', 'Resistivity', 'lat', 'lon', 'geometry']]
 
     if aem_value_type == 'conductivity':
-        aem_wq_buff_aemmean = aem_wq_buff_aemmean.rename(columns={'Resistivity': f'Conductivity_lyrs_{aem_lyr_lim}'}) 
+        aem_wq_buff_aemmean = aem_wq_buff_aemmean.rename(columns={'Resistivity': f'Conductivity_lyrs_{aem_lyr_lim}_rad_{rad_buffer}mile'}) 
 
     return aem_wq_buff_aemmean
 
@@ -159,8 +159,10 @@ aem_inside_buffer = get_aem_mean_in_well_buffer(gdfres= gdfaem, wqnodes_2m_gpd =
 # Drop geometry column
 aem_inside_buffer2 = aem_inside_buffer.drop(['geometry'], axis=1)
 
+#%%
 # Export CSV with AEM values
 aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
+# aem_inside_buffer2.to_csv(f"/Users/szalam/Main/00_Research_projects/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
 
 #%%
 #============================ Exporting data to kml ==================================

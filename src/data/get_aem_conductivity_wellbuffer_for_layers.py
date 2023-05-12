@@ -27,11 +27,11 @@ file_aem = config.data_processed / 'AEM'
 
 #==================== User Input requred ==========================================
 aem_src        = 'DWR'          # options: DWR, ENVGP
-well_src       = 'UCD'          # options: UCD, GAMA
+well_src       = 'GAMA'          # options: UCD, GAMA
 aem_region = [4, 5, 6, 7] 
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
-rad_buffer     = 1              # well buffer radius in miles
+rad_buffer     = 0.3              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
 #==================================================================================
 
