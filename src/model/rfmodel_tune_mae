@@ -226,7 +226,7 @@ def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
                 label="Cross-validation score")
 
         plt.legend(loc="best")
-        return plt
+        return plt 
 
     plot_learning_curve(best_rf, "Learning Curves (Random Forest)", X, y, cv=3)
 
