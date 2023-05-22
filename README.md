@@ -8,6 +8,7 @@ This repository contains a comprehensive script for water quality dataset analys
 - [Visualization](#visualization)
 
 ## Tree Structure
+```
 ├── data
 │   ├── get_aem_conductivity_wellbuffer_for_layers.py
 │   ├── get_aemvalue_wellbuffer_multiregions.py
@@ -68,3 +69,4 @@ This repository contains a comprehensive script for water quality dataset analys
 ├── config.py
 ├── utils.py
 ├── main.py
+```
