@@ -17,3 +17,10 @@ Feature : description
 'Resistivity_lyrs_9': 'Resistivity 9 layer',
 'Resistivity_lyrs_6': 'Resistivity 6 layer',
 'Resistivity_lyrs_4': 'Resistivity 4 layer'
+
+Natural landuse 1990
+Screen length
+CVHM Texture zone
+Annual Precipitation
+Percent coarse upper active layer
+Depth to bottom of well screen

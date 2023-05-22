@@ -19,6 +19,7 @@ df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 df = df[df.well_data_source == 'GAMA']
 df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
 
+# df = df[df.measurement_count>5]
 # df = df[df.well_type == 'Domestic']
 # Remove high salinity regions
 exclude_subregions = [14, 15, 10, 19,18, 9,6]
@@ -30,7 +31,7 @@ df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_{rad_well}miles'] <=
 def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
     import numpy as np
     columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi'
-                            'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',#'area_wt_sagbi',
+                            'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep','PrecipMinusETin_1971_2000_GWRP', 'area_wt_sagbi',
                             'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  'RechargeAnnualmmWolock', 'RiverDist_NEAR',
                             f'{res_var}']
     
@@ -48,7 +49,7 @@ def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
 
     # Step 4: Split the data into a training set and a testing set
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
 
     X_train.shape, X_test.shape, y_train.shape, y_test.shape
     
@@ -57,7 +58,7 @@ def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
     from sklearn.ensemble import RandomForestRegressor
 
     # Create a Random Forest Regressor
-    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf = RandomForestRegressor(n_estimators=100, random_state=42,bootstrap=True)
 
     # Train the model
     rf.fit(X_train, y_train)
@@ -76,22 +77,27 @@ def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
 
     # Define the hyperparameters
     rf_params = {
-        'n_estimators': [50, 100, 200, 500],
-        'max_depth': [1, 15, 25, 50],
+        'n_estimators': [500,1000,2000],
+        'max_depth': [15, 25],
         'min_samples_split': [5, 15, 25, 50],
-        'min_samples_leaf': [2, 10, 15, 25],
-        'max_features' : ['sqrt', 0.25, 0.5]
+        'min_samples_leaf': [10, 25, 50],
+        'max_features' : ['sqrt', 0.25, 0.5],
+
     }
     
     # Create a GridSearchCV object
     grid_search_rf = GridSearchCV(estimator=rf, param_grid=rf_params, cv=3,
-                                  scoring='neg_mean_squared_error',
+                                scoring='neg_mean_squared_error',
+                                #   scoring='r2',   
                                   return_train_score=True, # set this to True to check for overfitting
                                   verbose=3,n_jobs=-1)
 
     start_time = time()
     # Perform the grid search
     grid_search_rf.fit(X_train, y_train)
+    cv_results = pd.DataFrame.from_dict(grid_search_rf.cv_results_)
+    cv_results.to_csv(config.data_processed / f'rfmodel_config/rfmodel_parameters_resistivityUse_{res_var}.csv', index=False)
+
     total_time = time() - start_time
 
     # Get the best model
@@ -171,7 +177,7 @@ def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
     mae_test_rf_reduced = mean_absolute_error(np.exp(y_test), np.exp(y_pred_test_rf_reduced))
     rmse_test_rf_reduced = np.sqrt(mean_squared_error(np.exp(y_test), np.exp(y_pred_test_rf_reduced)))
 
-    mae_train_rf_reduced, rmse_train_rf_reduced, mae_test_rf_reduced, rmse_test_rf_reduced
+    # mae_train_rf_reduced, rmse_train_rf_reduced, mae_test_rf_reduced, rmse_test_rf_reduced
 
 
     # 
@@ -267,6 +273,41 @@ df_diff_error.to_csv(config.data_processed / 'rfmodel_config/rf_model_outputs.cs
 # print the DataFrame
 print(df_diff_error)
 
+#%%
+# Creating table for paper
+
+df_diff_error2 = df_diff_error.copy()
+df_diff_error2['MAE training - MAE training reduced'] = df_diff_error['MAE training'] - df_diff_error['MAE training reduced']
+df_diff_error2['MAE test - MAE test reduced'] = df_diff_error['MAE test'] - df_diff_error['MAE test reduced']
+
+# First, melt your dataframe to long format
+df_long = df_diff_error2.melt(id_vars='Radius (miles)', var_name='Metric', value_name='Value')
+
+
+# Ensure the data type is numeric
+df_long['Value'] = pd.to_numeric(df_long['Value'], errors='coerce')
+
+# Select only rows with metrics you are interested in
+metrics = ['MAE training', 'MAE test', 'R2 training', 'R2 test','MAE training - MAE training reduced','MAE test - MAE test reduced']
+df_selected = df_long[df_long['Metric'].isin(metrics)]
+
+# Pivot your dataframe to wide format
+df_pivot = df_selected.pivot(index='Metric', columns='Radius (miles)', values='Value')
+
+# Round to 2 decimals
+df_pivot = df_pivot.round(3)
+
+# Define your order
+order = ['MAE training', 'MAE test', 'R2 training', 'R2 test', 'MAE training - MAE training reduced', 'MAE test - MAE test reduced']
+
+# Apply the order to your DataFrame
+df_pivot = df_pivot.reindex(order)
+
+# Display your final DataFrame
+print(df_pivot)
+
+df_pivot.to_csv('/Users/szalam/Main/00_Research_projects/rf_table_for_manuscript.csv')
+
 #===============================
 # Checking overfitting
 #===============================
@@ -285,28 +326,59 @@ print("Difference in MAE between training and test sets: ", mae_test_rf - mae_tr
 
 # %%
 # plot a line graph of radius vs MAE training-test
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE training reduced']-df_diff_error['MAE training']), label='MAE diff training', linestyle='--', marker='o')
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE test reduced']-df_diff_error['MAE test']), label='MAE diff test', linestyle='-.', marker='x')
+plt.figure(figsize=(8, 6))
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE training reduced']-df_diff_error['MAE training']), label='Train', linestyle='--', marker='o')
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE test reduced']-df_diff_error['MAE test']), label='Test', linestyle='-.', marker='x')
 
 # add labels and title to the plot
-plt.xlabel('Radius (miles)')
-plt.ylabel('MAE')
-plt.title('Radius vs MAE diff ')
+plt.xlabel('Radius from well (miles)',size = 14)
+plt.ylabel('MAE Δ with/without Resistivity',size = 14)
+plt.title('Radius vs MAE difference ',size = 15)
+
 # add a legend to the plot
-plt.legend()
+plt.legend(fontsize = 13)
+
+# change the font size of the x-axis tick labels
+plt.tick_params(axis='x', labelsize=12)
+plt.tick_params(axis='y', labelsize=12)
+
 # show the plot
 plt.show()
 # %%
+plt.figure(figsize=(8, 6))
 # plot a line graph of radius vs MAE training-test
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE training reduced']-df_diff_error['RMSE training']), label='RMSE diff training', linestyle='--', marker='o')
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE test reduced']-df_diff_error['RMSE test']), label='RMSE diff test', linestyle='-.', marker='x')
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE training reduced']-df_diff_error['RMSE training']), label='Train', linestyle='--', marker='o')
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE test reduced']-df_diff_error['RMSE test']), label='Test', linestyle='-.', marker='x')
 
 # add labels and title to the plot
-plt.xlabel('Radius (miles)')
-plt.ylabel('RMSE')
-plt.title('Radius vs RMSE diff ')
+plt.xlabel('Radius from well (miles)', size = 14)
+plt.ylabel('RMSE Δ with/without Resistivity)', size = 14)
+plt.title('Radius vs RMSE difference', size = 15)
+
 # add a legend to the plot
-plt.legend()
+plt.legend(fontsize = 13)
+# change the font size of the x-axis tick labels
+plt.tick_params(axis='x', labelsize=12)
+plt.tick_params(axis='y', labelsize=12)
 # show the plot
 plt.show()
+# %%
+plt.figure(figsize=(8, 6))
+# plot a line graph of radius vs MAE training-test
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['R2 training reduced']-df_diff_error['R2 training']), label='Train', linestyle='--', marker='o')
+plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['R2 test reduced']-df_diff_error['R2 test']), label='Test', linestyle='-.', marker='x')
+
+# add labels and title to the plot
+plt.xlabel('Radius from well (miles)', size = 14)
+plt.ylabel('R2 Δ with/without Resistivity)', size = 14)
+plt.title('Radius vs R2 difference', size = 15)
+
+# add a legend to the plot
+plt.legend(fontsize = 13)
+# change the font size of the x-axis tick labels
+plt.tick_params(axis='x', labelsize=12)
+plt.tick_params(axis='y', labelsize=12)
+# show the plot
+plt.show()
+
 # %%

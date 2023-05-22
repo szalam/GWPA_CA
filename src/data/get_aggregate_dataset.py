@@ -278,12 +278,12 @@ df = pd.merge(df, redox_df, on='well_id', how='left')
 # # merge the dataframe with the current csv file based on well_id
 # df = pd.merge(df, df_N_input, on='well_id', how='left')
 
-def process_and_merge_data(df, file_name, column_name):
-    df_input = pd.read_csv(config.data_processed / f'redox_Ninput_katetal/exported_csv_redox_Ninput/{file_name}.csv')
+def process_and_merge_data(df, file_name, column_name, rad = 2):
+    df_input = pd.read_csv(config.data_processed / f'redox_Ninput_katetal/exported_csv_redox_Ninput/{file_name}_rad_{rad}mil.csv')
     df_input = df_input.rename(columns={"mean_value": column_name})
     df_input = df_input[['well_id', column_name]]
     # Replace negative values with NaN
-    df_input[column_name] = df_input[column_name].apply(lambda x: np.nan if x < 0 else x)
+    # df_input[column_name] = df_input[column_name].apply(lambda x: np.nan if x < 0 else x)
     # merge the dataframe with the current csv file based on well_id
     df = pd.merge(df, df_input, on='well_id', how='left')
     return df
@@ -305,7 +305,7 @@ variables = [
 ]
 
 for var in variables:
-    df = process_and_merge_data(df, var, var)
+    df = process_and_merge_data(df, var, var,rad=2)
 
 #%%
 # Use the str.replace() method to remove 'NO3_' from all values in the 'well_id' column
