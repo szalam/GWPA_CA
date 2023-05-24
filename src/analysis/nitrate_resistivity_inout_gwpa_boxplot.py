@@ -10,9 +10,33 @@ import seaborn as sns
 from scipy.stats import mannwhitneyu
 #%%
 rad_well = 2
+gama_old_new = 2
+all_dom_flag = 1 # 1: All, 2: Domestic
+if all_dom_flag == 2:
+    well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new) 
+else:
+    well_type_select = 'All'
+
 # Read dataset
-df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
-df = df[df.well_data_source == 'GAMA']
+def load_data(version):
+    """Load data based on version"""
+    filename = "Dataset_processed_GAMAlatest.csv" if version == 2 else "Dataset_processed.csv"
+    df = pd.read_csv(config.data_processed / filename)
+    return df
+
+def filter_data(df, well_type,all_dom_flag):
+    """Filter"""
+    exclude_subregions = [14, 15, 10, 19, 18, 9, 6]
+    if all_dom_flag == 2:
+        df = df[df.well_type ==  well_type] 
+    df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+    return df
+
+# Load and process data
+df_main = load_data(gama_old_new)
+df = df_main[df_main.well_data_source == 'GAMA'].copy()
+df = filter_data(df, well_type_select,all_dom_flag)
+
 df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
 
 # df = df[df.measurement_count>5]
@@ -32,15 +56,15 @@ plt.rcParams.update({'font.size': 16})
 # creating a new column for grouping
 df['Grouped_GWPAType'] = df['GWPAType'].apply(lambda x: x if x == 'Leaching' else 'Outside Leaching GWPA')
 
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(7, 7))
 ax = sns.boxplot(data=df, x='Grouped_GWPAType', y='mean_nitrate')
 ax.set_yscale('log')
 
 ax.set_ylim(top=np.max(df['mean_nitrate']) * 2)
 
-plt.title('Mean Nitrate inside/outside leaching GWPA')
+# plt.title('Mean Nitrate-N inside/outside leaching GWPA')
 plt.xlabel(' ')
-plt.ylabel('Mean Nitrate-N (mg/l)')
+plt.ylabel('Mean Nitrate-N (mg/l)', fontsize = 22)
 
 # Annotate with number of observations
 n_obs = df['Grouped_GWPAType'].value_counts().values
@@ -83,14 +107,14 @@ combined_df = pd.concat([df, df_leach])
 # Increase the global font size
 plt.rcParams.update({'font.size': 16})
 
-plt.figure(figsize=(8, 6))
+plt.figure(figsize=(7, 7))
 ax = sns.boxplot(data=combined_df, x='Grouped_GWPAType', y='Resistivity_lyrs_9_rad_2_miles')
 
 
 # Set any desired plot configurations
-plt.title('Depth Average Resistivity Distribution')
+# plt.title('Depth Average Resistivity Distribution')
 plt.xlabel(' ')
-plt.ylabel('Depth Average Resistivity (ohm-m)')
+plt.ylabel('Depth Average Resistivity (ohm-m)', fontsize = 22)
 
 ax.set_yscale('log')
 ax.set_ylim(top=np.max(df['mean_nitrate']) * 2)

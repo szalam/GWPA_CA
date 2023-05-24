@@ -27,16 +27,17 @@ file_aem = config.data_processed / 'AEM'
 
 #==================== User Input requred ==========================================
 aem_src        = 'DWR'          # options: DWR, ENVGP
-well_src       = 'UCD'          # options: UCD, GAMA
+well_src       = 'GAMA'          # options: UCD, GAMA
 aem_regions = [4, 5, 6, 7] # list of all regions
 # aem_reg2       = 4              # use only if two regions are worked with
 aem_lyr_lim    = 9              # options: 9, 8. For DWR use 9,3,20, for ENVGP use 8
 aem_value_type = 'conductivity' # options: resistivity, conductivity
 aem_stat       = 'mean'         # options: mean, min
-rad_buffer     = .2              # well buffer radius in miles
+rad_buffer     = 3.5              # well buffer radius in miles
 buffer_flag    = 0              # flag 1: use existing buffer shapefile; 0: create buffer
+gama_old_new   = 2              # 1: old dataset, 2: lates2 dataset
 #==================================================================================
-
+#%%
 
 #=========================== Import water quality data ==========================
 if well_src == 'GAMA':
@@ -45,10 +46,15 @@ if well_src == 'GAMA':
     # df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
     # df['DATE']= pd.to_datetime(df['DATE'])
 
-    file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
-    df= dp.get_polut_df(file_sel = file_polut)
-    df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
-    df['DATE']= pd.to_datetime(df['DATE'])
+    if gama_old_new == 1:
+        file_polut = config.data_gama_all / 'CENTRALVALLEY_NO3N_GAMA.csv'
+        df= dp.get_polut_df(file_sel = file_polut)
+        df.rename(columns = {'GM_WELL_ID':'WELL ID', 'GM_LATITUDE':'APPROXIMATE LATITUDE', 'GM_LONGITUDE':'APPROXIMATE LONGITUDE', 'GM_CHEMICAL_VVL': 'CHEMICAL', 'GM_RESULT': 'RESULT','GM_WELL_CATEGORY':'DATASET_CAT','GM_SAMP_COLLECTION_DATE':'DATE'}, inplace = True)
+        df['DATE']= pd.to_datetime(df['DATE'])
+    if gama_old_new == 2:
+        file_polut = config.data_processed / "well_stats/gamanitrate_latest_stats.csv"
+        df= pd.read_csv(file_polut)
+        df.rename(columns = {'well_id':'WELL ID','well_type':'DATASET_CAT'}, inplace = True)
 
 if well_src == 'UCD':
     # file location
@@ -161,7 +167,10 @@ aem_inside_buffer2 = aem_inside_buffer.drop(['geometry'], axis=1)
 
 #%%
 # Export CSV with AEM values
-aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
+if gama_old_new == 1:
+    aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
+if gama_old_new == 2:
+    aem_inside_buffer2.to_csv(config.data_processed / f"aem_values/AEMsrc_{aem_src}_wellsrc_{well_src}latest_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
 # aem_inside_buffer2.to_csv(f"/Users/szalam/Main/00_Research_projects/AEMsrc_{aem_src}_wellsrc_{well_src}_rad_{rad_buffer}mile_lyrs_{aem_lyr_lim}.csv")
 
 #%%

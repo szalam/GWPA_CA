@@ -3,95 +3,63 @@
 # for wells when they have almost similar conductivity
 #================================================================================
 #%%
+# Import required modules
 import sys
-sys.path.insert(0,'src')
-sys.path.insert(0, 'src/data')
-
 import pandas as pd
-import config
 import numpy as np
 import matplotlib.pyplot as plt 
-import ppfun as dp
-from scipy import stats
 import seaborn as sns
 import matplotlib as mpl
+from scipy import stats
+import statsmodels.api as sm
+
+# Local modules
+sys.path.insert(0,'src')
+sys.path.insert(0, 'src/data')
+import config
+import ppfun as dp
 import get_infodata as gi
-import geopandas as gpd
 
-# Read dataset
-df_main = pd.read_csv(config.data_processed / "Dataset_processed.csv")
 #%%
-df = df_main.copy()
-plt_cond = 0.1      # Threshold condoctivity above which thickness calculated
+# Functions
+def load_data(version):
+    """Load data based on version"""
+    filename = "Dataset_processed_GAMAlatest.csv" if version == 2 else "Dataset_processed.csv"
+    df = pd.read_csv(config.data_processed / filename)
+    return df
+
+def filter_data(df, well_type,all_dom_flag):
+    """Filter and modify data"""
+    exclude_subregions = [14, 15, 10, 19, 18, 9, 6]
+    if all_dom_flag == 2:
+        df = df[df.well_type ==  well_type] 
+    df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+    return df
+
+# Constants
+# plt_cond = 0.1      # Threshold condoctivity above which thickness calculated
 lyrs = 9
-#%%
-df = df[df.well_data_source == 'GAMA']
-# df = df[df['SubRegion'] != 14]
-# df = df[df['SubRegion'] == 10]
-# df = df[df.measurement_count > 4]
-# df = df[df.city_inside_outside == 'outside_city']
-# well_type_select = 'Domestic' # 'Water Supply, Other', 'Municipal', 'Domestic'
-# df = df[df.well_type ==  well_type_select] 
-# df = df[pd.isna(df.GWPAType)==True] # False for areas with GWPA
+rad_buffer = 2
+gama_old_new = 2
+all_dom_flag = 1 # 1: All, 2: Domestic
+if all_dom_flag == 2:
+    well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new)
+else:
+    well_type_select = 'All'
+cond_type_used = 'Resistivity_lyrs_9_rad_2_miles'
+aem_type = 'Conductivity' if 'Conductivity' in cond_type_used else 'Resistivity'
 
-# Remove high salinity regions
-exclude_subregions = [14, 15, 10, 19,18, 9,6]
-# filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
-df = df[(df[f'thickness_abovCond_{round(plt_cond*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
-# df = df[(df[f'thickness_abovCond_{round(0.1*100)}_lyrs_{lyrs}'] == 0)]
-# df = df[(df[f'thickness_abovCond_{round(0.08*100)}_lyrs_{lyrs}'] == 0)]
-        
-# condition = (df[f'thickness_abovCond_{round(plt_cond*100)}'] > 31) & (df['mean_nitrate'] > 0)
-# df = df[condition==False]
-
-df = df[df.mean_nitrate<100]
-# df = df.dropna()
+# Load and process data
+df_main = load_data(gama_old_new)
+df = df_main[df_main.well_data_source == 'GAMA'].copy()
+df = filter_data(df, well_type_select,all_dom_flag)
 
 layer_depths = gi.dwr_aem_depths()
 
 
 #%%
-# assuming your dataframe is named 'df'
-lyrs = 9
-plt_conds = [0.05, 0.06, 0.07, 0.08, 0.1, 0.15]
-rad_buffer = 2
 
-# create a dictionary of column names for each plt_cond
-column_dict = {plt_cond: f'thickness_abovCond_{round(plt_cond*100)}_lyrs_{lyrs}_rad_{rad_buffer}miles' 
-               for plt_cond in plt_conds}
-
-# define custom bin edges with the desired intervals
-custom_bins = [0,.0001] + [i for i in range(5, 101, 5)]
-
-
-# iterate over each plt_cond and create a scatter plot
-for plt_cond in plt_conds:
-    # get the column name for this plt_cond
-    column_name = column_dict[plt_cond]
-    
-    # calculate the median for each 5 intervals of thickness
-    df['thickness_intervals'] = pd.cut(df[column_name], bins=custom_bins, right=False)
-    median_nitrate = df.groupby('thickness_intervals')['mean_nitrate'].median()
-    
-    y_vals = [f'{round(1/plt_cond,1)}' for _ in range(len(df))]
-    # create a scatter plot with point colors based on median_nitrate values
-    plt.scatter(df[column_name], y_vals, 
-                c=df['thickness_intervals'].apply(lambda x: median_nitrate.loc[x]), cmap='coolwarm', s=1.5)
-    
-# add axis labels and a colorbar
-plt.xlabel(r'Thickness with resistivity >= $\rho_{\mathrm{th}}$ ')
-plt.ylabel(r'Resistivity threshold ($\rho_{\mathrm{th}}$)')
-plt.colorbar(label='Median Nitrate-N')
-
-# show the plot
-plt.show()
-
-#%%
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-def plot_heatmap(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs):
+def plot_heatmap(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs,all_dom_flag):
     thickness_intervals = range(0, max_thickness, interval)
 
     # create a dictionary of column names for each plt_cond
@@ -125,17 +93,18 @@ def plot_heatmap(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs):
             elif stat == 'count':
                 count_array[i, j] = len(nitrate_values)
     # create a heatmap using the nitrate_array
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 8))
     # im = ax.imshow(nitrate_array, cmap='coolwarm')
     # im = ax.imshow(nitrate_array, cmap='RdBu_r')
     im = ax.imshow(nitrate_array, cmap='viridis', vmax = 5, vmin = 0)
     # set x and y ticks and labels
     ax.set_xticks(np.arange(len(thickness_intervals)))
     ax.set_xticklabels(thickness_intervals)
-    ax.set_xlabel(r'Thickness with resistivity >= $\rho_{\mathrm{th}}$ ')
+    ax.set_xlabel(r'Thickness with resistivity >= $\rho_{\mathrm{th}}$ ',fontsize =22)
     ax.set_yticks(np.arange(len(plt_conds)))
     ax.set_yticklabels([round(1/plt_cond,1) for plt_cond in plt_conds])
-    ax.set_ylabel(r'Resistivity threshold ($\rho_{\mathrm{th}}$)')
+    ax.set_ylabel(r'Resistivity threshold ($\rho_{\mathrm{th}}$)',fontsize =22)
+    plt.tick_params(axis='both', which='major', labelsize=19)
 
     
 # set title
@@ -149,15 +118,19 @@ def plot_heatmap(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs):
         cbar = ax.figure.colorbar(im, ax=ax)
         cbar.ax.set_ylabel('Count', rotation=-90, va='bottom')  # updated line
     else:
-        ax.set_title(f'{stat.capitalize()} Nitrate-N')
+        if all_dom_flag == 1:
+            plt.title('All wells', fontsize=24)
+        if all_dom_flag == 2:
+            plt.title('Domestic wells', fontsize=24)
         # add colorbar
-        cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.ax.set_ylabel('Nitrate-N', rotation=-90, va='bottom')
+        cbar = ax.figure.colorbar(im, ax=ax,shrink=0.5)
+        cbar.ax.tick_params(labelsize=14)
+        cbar.ax.set_ylabel(f'{stat.capitalize()} Nitrate-N', rotation=-90, va='bottom', fontsize = 22)
     # show plot
     plt.show()
 
 #%%
-plot_heatmap(df, plt_conds=[0.05, 0.06, 0.07, 0.08, 0.1], interval=3, stat='median',max_thickness = 30, rad_buffer = 2,lyrs = 9)
+plot_heatmap(df, plt_conds=[0.05, 0.06, 0.07, 0.08, 0.1], interval=3, stat='median',max_thickness = 30, rad_buffer = 2,lyrs = 9,all_dom_flag=all_dom_flag)
 # plot_heatmap(df, plt_conds=[0.05, 0.06, 0.07, 0.08, 0.1], interval=3, stat='75th percentile',max_thickness = 30,rad_buffer = 2,lyrs = 9)
 # plot_heatmap(df, plt_conds=[0.05, 0.08, 0.1], interval=3, stat='std',max_thickness = 30, rad_buffer = 2)
 # plot_heatmap(df, plt_conds=[0.05, 0.06, 0.07, 0.08, 0.1], interval=3, stat='max',max_thickness = 30,rad_buffer = 2,lyrs = 9)
@@ -206,7 +179,7 @@ def plot_heatmap2(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs):
             elif stat == 'count':
                 count_array[i, j] = len(nitrate_values)
     # create a heatmap using the nitrate_array
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6, 5))
     # im = ax.imshow(nitrate_array, cmap='coolwarm')
     im = ax.imshow(nitrate_array, cmap='viridis')
     # set x and y ticks and labels
@@ -231,8 +204,9 @@ def plot_heatmap2(df, plt_conds, interval, stat,max_thickness,rad_buffer,lyrs):
     else:
         ax.set_title(f'{stat.capitalize()} Nitrate-N')
         # add colorbar
-        cbar = ax.figure.colorbar(im, ax=ax)
-        cbar.ax.set_ylabel('Nitrate-N', rotation=-90, va='bottom')
+        cbar = ax.figure.colorbar(im, ax=ax,shrink=0.6)
+        cbar.ax.tick_params(labelsize=10)  
+        cbar.ax.set_ylabel(f'{stat.capitalize()} Nitrate-N', rotation=-90, va='bottom')
     # show plot
     plt.show()
 # %%

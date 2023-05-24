@@ -13,25 +13,42 @@ import seaborn as sns
 from sklearn.metrics import mean_squared_error, r2_score
 
 #%%
+# Constants
 rad_well = 2
+gama_old_new = 2 # 1: earlier version, 2: latest version of GAMA
+all_dom_flag = 1 # 1: All, 2: Domestic
+if all_dom_flag == 2:
+    well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new) 
+else:
+    well_type_select = 'All'
+
 # Read dataset
-df = pd.read_csv(config.data_processed / "Dataset_processed.csv")
-df = df[df.well_data_source == 'GAMA']
+def load_data(version):
+    """Load data based on version"""
+    filename = "Dataset_processed_GAMAlatest.csv" if version == 2 else "Dataset_processed.csv"
+    df = pd.read_csv(config.data_processed / filename)
+    return df
+
+def filter_data(df, well_type,all_dom_flag):
+    """Filter"""
+    exclude_subregions = [14, 15, 10, 19, 18, 9, 6]
+    if all_dom_flag == 2:
+        df = df[df.well_type ==  well_type] 
+    df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
+    return df
+
+# Load and process data
+df_main = load_data(gama_old_new)
+df = df_main[df_main.well_data_source == 'GAMA'].copy()
+df = filter_data(df, well_type_select,all_dom_flag)
+
 df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
-
-# df = df[df.measurement_count>5]
-# df = df[df.well_type == 'Domestic']
-# Remove high salinity regions
-exclude_subregions = [14, 15, 10, 19,18, 9,6]
-# # filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
-df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_{rad_well}miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
-
 # %%
 
 def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
     import numpy as np
-    columns_to_keep = ['mean_nitrate','Average_ag_area','N_total',#'area_wt_sagbi'
-                            'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep','PrecipMinusETin_1971_2000_GWRP', 'area_wt_sagbi',
+    columns_to_keep = ['mean_nitrate','N_total',#'Average_ag_area'
+                            'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep','PrecipMinusETin_1971_2000_GWRP', #'area_wt_sagbi',
                             'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  'RechargeAnnualmmWolock', 'RiverDist_NEAR',
                             f'{res_var}']
     

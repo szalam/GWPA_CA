@@ -1,5 +1,7 @@
 library(dplyr)
 
+gama_flag = 2 # 1: Earlier gama data, 2: latest gama data
+
 file_path <- file.path("/Users/szalam/Library/CloudStorage/GoogleDrive-szalam@stanford.edu/Shared drives/GWAttribution/data/processed/aem_values")
 
 merge_dataframes <- function(file_path, dtype_sel, aem_lyr_lim_all, rad_buffer_all, cond_thresh_values) {
@@ -44,18 +46,30 @@ merge_dataframes <- function(file_path, dtype_sel, aem_lyr_lim_all, rad_buffer_a
   return(df)
 }
 
-# for dtype_sel = 'GAMA'
-df1 <- merge_dataframes(file_path, dtype_sel = 'GAMA', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+if(gama_flag==1){
+  # for dtype_sel = 'GAMA'
+  df1 <- merge_dataframes(file_path, dtype_sel = 'GAMA', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+  
+  # for dtype_sel = 'UCD'
+  df2 <- merge_dataframes(file_path, dtype_sel = 'UCD', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+  
+  # Merge the dataframes
+  df <- rbind(df1, df2)
+}
 
-# for dtype_sel = 'UCD'
-df2 <- merge_dataframes(file_path, dtype_sel = 'UCD', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4, 5), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
-
-# Merge the dataframes
-df <- rbind(df1, df2)
+if(gama_flag==2){
+  df <- merge_dataframes(file_path, dtype_sel = 'GAMAlatest', aem_lyr_lim_all = c(4, 6, 9), rad_buffer_all = c(0.5, 1, 2, 3, 4), cond_thresh_values = c(0.05, 0.06, 0.07, 0.08, 0.10, 0.15))
+}
 
 dim(df)
 # Construct the file path
-file_path_out = paste0(file_path, "/thickness_combined_rad_cond_lyrs.csv")
+if(gama_flag==1){
+  file_path_out = paste0(file_path, "/thickness_combined_rad_cond_lyrs.csv")
+}
+if(gama_flag==2){
+  file_path_out = paste0(file_path, "/thickness_combined_rad_cond_lyrs_GAMAlatest.csv")
+}
+
 # Export the DataFrame as a CSV file
 write.csv(df, file_path_out, row.names = FALSE)
 

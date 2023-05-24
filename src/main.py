@@ -7,23 +7,23 @@ import subprocess
 #============================================================
 # Preprocess
 #============================================================
-# Script: get_nitratedata_gama.py
-subprocess.call(["python", "data/get_nitratedata_gama.py"])
+# Preprocess latest gama dataset
+subprocess.call(["python", "data/gama_latestdata_combine.py"])
 
-# Script: get_nitratedata_ucd.py
-subprocess.call(["python", "data/get_nitratedata_ucd.py"])
-
-# Script: get_aem_conductivity_wellbuffer_for_layers.py
-subprocess.call(["python", "data/get_aem_conductivity_wellbuffer_for_layers.py"])
-
-# Script: get_aemvalue_wellbuffer_multiregions.py
+# Get AEM values at different well buffers
 subprocess.call(["python", "data/get_aemvalue_wellbuffer_multiregions.py"])
 
-# Script: get_cafopop_inbuffer.py
-subprocess.call(["python", "data/get_cafopop_inbuffer.py"])
+# Calculate the thickness of clay layers for different resistivity threshold levels and well radius
+subprocess.call(["python", "data/get_thickness_wellbuffer_multiregions.py"])
 
-# Script: get_gwdepth_at_wells.py
-subprocess.call(["python", "data/get_gwdepth_at_wells.py"])
+# Combine the thickness of aem values to single csv. This is a R code. I used Rstudio for running the following
+# get_thickness_combined.R
+
+# The data from previous literature Ransom et al. was extracted using code ran in colab
+# The code first required separating GAMA well locations to be imported by colab code
+subprocess.call(["python", "data/get_gama_wells_csv_locations.py"]) # separate well locations
+# get_redox_data.ipynb # colab code that has been run
+
 
 # Script: get_lucdl.py
 subprocess.call(["python", "data/get_lucdl.py"])
@@ -31,28 +31,15 @@ subprocess.call(["python", "data/get_lucdl.py"])
 # Script: get_lucdl_1.py
 subprocess.call(["python", "data/get_lucdl_1.py"])
 
-# Script: get_sagbi_well_buffer.py
-subprocess.call(["python", "data/get_sagbi_well_buffer.py"])
-
 # Script: get_subreg_gwpa_for_wells.py
 subprocess.call(["python", "data/get_subreg_gwpa_for_wells.py"])
-
-# Script: get_thickness_combined.R
-subprocess.call(["Rscript", "data/get_thickness_combined.R"])
-
-# Script: get_thickness_wellbuffer_multiregions.py
-subprocess.call(["python", "data/get_thickness_wellbuffer_multiregions.py"])
-
-# Script: get_well_in_city.py
-subprocess.call(["python", "data/get_well_in_city.py"])
 
 
 #============================================================
 # Combine all dataset to single csv
 #============================================================
 # Script: get_aggregate_dataset.py
-subprocess.call(["python", "data/get_aggregate_dataset.py"])
-
+subprocess.call(["python", "data/get_aggregate_dataset_GAMAlatest.py"])
 
 #============================================================
 # Postprocess
@@ -62,15 +49,11 @@ subprocess.call(["python", "data/get_aggregate_dataset.py"])
 ## Resistivity vs nitrate plot
 subprocess.call(["python", "analysis/resistivity_nitrate_plot.py"])
 
-
-# Clay thickness and nitrate relationship
 ## Clay thickness and nitrate box plot
 subprocess.call(["python", "analysis/clay_thickness_nitrate.py"])
 
 ## Clay thickness and nitrate heatmap
 subprocess.call(["python", "analysis/clay_thickness_nitrate_bivariate.py"])
-
-
 
 # Nitrate and resistivity distribution in all wells vs inside leaching GWPA
 subprocess.call(["python", "analysis/nitrate_resistivity_inout_gwpa_boxplot.py"])
