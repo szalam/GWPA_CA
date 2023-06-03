@@ -110,7 +110,7 @@ def get_aem_conductivity_plot(gdfres, cond_thresh = None, reg=None, conductivity
     return aemres, fig
 
 # Plot Resistivity
-def get_aem_resistivity_plot(gdfres, resistivity_above = None, reg=None, conductivity_max_lim=None):
+def get_aem_resistivity_plot(gdfres, resistivity_above = None, reg=None, conductivity_max_lim=None,remove_highsaline_regions_flag=None,select_subset_lowres_regions=None):
     aemres = gdfres.copy()
     # aemres = gpd.clip(aemres, reg)
     aemres = gpd.sjoin(aemres, reg, op="within")
@@ -122,24 +122,26 @@ def get_aem_resistivity_plot(gdfres, resistivity_above = None, reg=None, conduct
 
     aemres.loc[aemres.Resistivity > 50, 'Resistivity'] = 50  # Set values greater than 50 to 50
 
-    # define the list of SubRegions to exclude
-    exclude_subregions = [14, 15, 10, 19,18, 9,6]
+    if remove_highsaline_regions_flag == 1:
+        # define the list of SubRegions to exclude
+        exclude_subregions = [14, 15, 10, 19,18, 9,6]
 
-    # filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
-    aemres = aemres[(aemres['Resistivity'] >= 8) | (~aemres['SubRegion'].isin(exclude_subregions))]
+        # filter aemres to keep only the rows where Resistivity is >= 10 and SubRegion is not in the exclude_subregions list
+        aemres = aemres[(aemres['Resistivity'] >= 8) | (~aemres['SubRegion'].isin(exclude_subregions))]
 
+    if select_subset_lowres_regions == 1:
+        # Assign values for different resistivity ranges
+        aemres.loc[aemres.Resistivity <= 5, 'Resistivity'] = 1
+        aemres.loc[(aemres.Resistivity > 5) & (aemres.Resistivity <= 10), 'Resistivity'] = 2
+        aemres.loc[(aemres.Resistivity > 10) & (aemres.Resistivity <= 15), 'Resistivity'] = 3
+        aemres.loc[(aemres.Resistivity > 15) & (aemres.Resistivity <= 20), 'Resistivity'] = 4
+
+        # Remove rows where aemres.Resistivity is not 1 or 2
+        aemres = aemres[(aemres.Resistivity == 1) | (aemres.Resistivity == 2) | (aemres.Resistivity == 3) | (aemres.Resistivity == 4)]
 
     # Remove parts with Resistivity > 31
     if resistivity_above is not None:
         aemres = aemres[aemres.Resistivity > resistivity_above]
-    
-    # Define Resistivity value ranges and associated colors
-    # ranges = [0, .01,.02,.03,.04,.05,.06,.07,.08,.09]
-    # colors = ['purple', 'blue', 'deepskyblue', 'green', 'yellow', 'orange', 'red', 'saddlebrown', 'gray', 'pink']
-    
-    # # Create a colormap using the defined colors and ranges
-    # cmap = mpl.colors.ListedColormap(colors)
-    # norm = mpl.colors.BoundaryNorm(ranges, cmap.N)
     
     # Create the plot
     fig = plt.figure(figsize=(7, 10))
@@ -161,15 +163,21 @@ def get_aem_resistivity_plot(gdfres, resistivity_above = None, reg=None, conduct
 # %%
 cv = gi.get_region(reg_sel = 'cv')
 # get_aem_resistivity_plot(gdfres = gdfaem, resistivity_above = 1, reg = cv_subreg, conductivity_max_lim = None)
-aemres_tmp, depth_avg_res = get_aem_resistivity_plot(gdfres = gdfaem, resistivity_above = 1, reg = cv_subreg, conductivity_max_lim = None)
+aemres_tmp, depth_avg_res = get_aem_resistivity_plot(gdfres = gdfaem, resistivity_above = None, reg = cv_subreg, conductivity_max_lim = None,remove_highsaline_regions_flag=1)
+aemres_tmp_wtsalineregion, depth_avg_res = get_aem_resistivity_plot(gdfres = gdfaem, resistivity_above = None, reg = cv_subreg, conductivity_max_lim = None,remove_highsaline_regions_flag=None,select_subset_lowres_regions=None)
+aemres_tmp_subsetregion, depth_avg_res = get_aem_resistivity_plot(gdfres = gdfaem, resistivity_above = None, reg = cv_subreg, conductivity_max_lim = None,remove_highsaline_regions_flag=1,select_subset_lowres_regions=1)
 
 #%%
 aemres2 = aemres_tmp[['Resistivity', 'geometry', 'HR', 'SubRegion']]
+aemres_wtsaline = aemres_tmp_wtsalineregion[['Resistivity', 'geometry', 'HR', 'SubRegion']]
+aemres_subset = aemres_tmp_subsetregion[['Resistivity', 'geometry', 'HR', 'SubRegion']]
 
 #%%
-aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.geojson", driver="GeoJSON") # export to GeoJSON
+# aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.geojson", driver="GeoJSON") # export to GeoJSON
 #%%
 aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.shp", driver="ESRI Shapefile") # export to GeoJSON
+aemres_wtsaline.to_file(config.data_processed / "DAR/DAR_9lyrs_wt_saline.shp", driver="ESRI Shapefile") # export to GeoJSON
+aemres_subset.to_file(config.data_processed / "DAR/DAR_9lyrs_subsetregions.shp", driver="ESRI Shapefile") # export to GeoJSON
 
 #%%
 

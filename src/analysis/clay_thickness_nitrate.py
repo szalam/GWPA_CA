@@ -52,7 +52,12 @@ aem_type = 'Conductivity' if 'Conductivity' in cond_type_used else 'Resistivity'
 # Load and process data
 df_main = load_data(gama_old_new)
 df = df_main[df_main.well_data_source == 'GAMA'].copy()
-df = filter_data(df, well_type_select,all_dom_flag)
+# separate wells inside cv
+well_cv = pd.read_csv(config.data_processed / 'wells_inside_CV_GAMAlatest.csv',index_col=False)
+# Assuming df is your dataframe with all wells
+df_cv = df[df['well_id'].isin(well_cv['well_id'])]
+
+df = filter_data(df_cv, well_type_select,all_dom_flag)
 
 layer_depths = gi.dwr_aem_depths()
 

@@ -47,16 +47,25 @@ def plot_data(df, x_col, y_col):
 
 # Constants
 gama_old_new = 2
-all_dom_flag = 2 # 1: All, 2: Domestic
+all_dom_flag = 1 # 1: All, 2: Domestic
 if all_dom_flag == 2:
     well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new) 
+if all_dom_flag == 1:
+    well_type_select = 'All'
 cond_type_used = 'Resistivity_lyrs_9_rad_2_miles'
 aem_type = 'Conductivity' if 'Conductivity' in cond_type_used else 'Resistivity'
 
 # Load and process data
 df_main = load_data(gama_old_new)
 df = df_main[df_main.well_data_source == 'GAMA'].copy()
-df = filter_data(df, well_type_select,all_dom_flag)
+
+#%%
+# separate wells inside cv
+well_cv = pd.read_csv(config.data_processed / 'wells_inside_CV_GAMAlatest.csv',index_col=False)
+# Assuming df is your dataframe with all wells
+df_cv = df[df['well_id'].isin(well_cv['well_id'])]
+
+df = filter_data(df_cv, well_type_select,all_dom_flag)
 
 # Plot data
 plot_data(df, cond_type_used, 'mean_nitrate')
@@ -88,6 +97,7 @@ def plot_boxplot(df, x_col, y_col, aem_type,all_dom_flag):
         plt.title('(a) All wells', fontsize=26)
     if all_dom_flag == 2:
         plt.title('(b) Domestic wells', fontsize=26)
+    plt.grid(axis='y')
     plt.show()
 
 def plot_histogram(df, cond_type_used, aem_type):
@@ -104,7 +114,7 @@ def plot_histogram(df, cond_type_used, aem_type):
 
 # Process and plot data
 df = process_data(df, aem_type, cond_type_used)
-plot_boxplot(df, 'Conductivity_binned', 'mean_nitrate', aem_type, all_dom_flag = 2)
+plot_boxplot(df, 'Conductivity_binned', 'mean_nitrate', aem_type, all_dom_flag = all_dom_flag)
 plot_histogram(df, cond_type_used, aem_type)
 
 # %%

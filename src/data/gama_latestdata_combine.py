@@ -10,7 +10,7 @@ from scipy.stats import linregress
 from scipy import stats
 
 # Set the path to the directory containing the CSV files
-path = '/Users/szalam/Downloads'
+path = f'{config.data_raw}/GAMA/GAMAlatest'
 
 # Get a list of all CSV files in the folder
 csv_files = [file for file in os.listdir(path) if file.endswith('.csv')]
