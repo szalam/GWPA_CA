@@ -64,3 +64,7 @@ subprocess.call(["python", "analysis/nitrate_resistivity_inout_gwpa_boxplot.py"]
 
 # Random forest model hyper parameter tuning and error estimation.
 subprocess.call(["python", "model/rfmodel_tune_mae.py"])
+# Random forest model performance evaluation
+subprocess.call(["python", "model/rfmodel_performance_evaluation.py"])
+# Random forest model relative importance determination.
+subprocess.call(["python", "model/rfmodel_feature_importance.py"])

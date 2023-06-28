@@ -1,27 +1,17 @@
 #%%
 import sys
 sys.path.insert(0,'src')
-
-import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error
 import matplotlib.pyplot as plt
-import config
 import numpy as np
-import seaborn as sns
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import mean_absolute_error, mean_squared_error
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import r2_score
+import config
+import pandas as pd
+
+from tqdm import tqdm
 from time import time
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import learning_curve
+from sklearn.model_selection import train_test_split, GridSearchCV, learning_curve
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import cross_val_score
-
-
-import numpy as np
 
 #%%
 # Constants
@@ -33,6 +23,8 @@ if all_dom_flag == 2:
 else:
     well_type_select = 'All'
 
+
+# Function definitions 
 # Read dataset
 def load_data(version):
     """Load data based on version"""
@@ -48,169 +40,88 @@ def filter_data(df, well_type,all_dom_flag):
     df = df[(df[f'thickness_abovCond_{round(.1*100)}_lyrs_9_rad_2miles'] <= 31) | (~df['SubRegion'].isin(exclude_subregions))]
     return df
 
-# Load and process data
-df_main = load_data(gama_old_new)
-df = df_main[df_main.well_data_source == 'GAMA'].copy()
+def train_and_evaluate(model, X_train, y_train, X_test, y_test):
+    model.fit(X_train, y_train)
+    y_pred_train = model.predict(X_train)
+    y_pred_test = model.predict(X_test)
+    
+    metrics = {
+        'mae_train': mean_absolute_error(y_train, y_pred_train),
+        'rmse_train': np.sqrt(mean_squared_error(y_train, y_pred_train)),
+        'r2_train': r2_score(y_train, y_pred_train),
+        'mae_test': mean_absolute_error(y_test, y_pred_test),
+        'rmse_test': np.sqrt(mean_squared_error(y_test, y_pred_test)),
+        'r2_test': r2_score(y_test, y_pred_test),
+    }
+    
+    return model, metrics
 
-#%%
-df['well_type_encoded'] = pd.factorize(df['well_type'])[0]
-df['well_type_encoded'] = df['well_type_encoded'].where(df['well_type'].notna(), df['well_type'])
-#%%
-# separate wells inside cv
-well_cv = pd.read_csv(config.data_processed / 'wells_inside_CV_GAMAlatest.csv',index_col=False)
-# Assuming df is your dataframe with all wells
-df_cv = df[df['well_id'].isin(well_cv['well_id'])]
 
-df = filter_data(df_cv, well_type_select,all_dom_flag)
+def tune_and_evaluate(estimator, params, X_train, y_train, X_test, y_test):
+    grid_search = GridSearchCV(
+        estimator=estimator,
+        param_grid=params,
+        cv=3,
+        scoring='neg_mean_squared_error',
+        return_train_score=True,
+        verbose=3,
+        n_jobs=-1
+    )
 
-df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
-# %%
+    start_time = time()
+    grid_search.fit(X_train, y_train)
+    total_time = time() - start_time
 
-def rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_2_miles'):
+    best_model, metrics = train_and_evaluate(grid_search.best_estimator_, X_train, y_train, X_test, y_test)
+    metrics['time'] = total_time
 
+    cv_results = pd.DataFrame(grid_search.cv_results_)
+    cv_results['mae_cv'] = -cv_results['mean_test_score']
+    cv_results['r2_cv'] = cross_val_score(grid_search.best_estimator_, X_train, y_train, cv=3, scoring='r2').mean()
+
+    return best_model, metrics, cv_results
+
+def rf_mod_compare(df, res_var='Resistivity_lyrs_9_rad_2_miles'):
     columns_to_keep = ['mean_nitrate','N_total',#'Average_ag_area'
-                            'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep','PrecipMinusETin_1971_2000_GWRP', #'area_wt_sagbi',
-                            'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  'RechargeAnnualmmWolock', 'RiverDist_NEAR','well_type_encoded',
-                            f'{res_var}']
+                        'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',
+                        'PrecipMinusETin_1971_2000_GWRP', #'area_wt_sagbi',
+                        'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  
+                        'RechargeAnnualmmWolock', 'RiverDist_NEAR','well_type_encoded',
+                        f'{res_var}']
     
     df2 = df[columns_to_keep]
     df2 = df2.dropna()
-    # 
+
     # Features
     X = df2.drop("mean_nitrate", axis=1)
 
     # Target
     y = df2["mean_nitrate"]
-
     y[y<=0]=.00001
     y = np.log(y)
 
     # Split the data into a training set and a testing set
-
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    X_train.shape, X_test.shape, y_train.shape, y_test.shape
     
-    # Train a Random Forest model
+    rf_params = {
+        'n_estimators': [500, 5000, 10000],
+        'max_depth': [5, 25, 50, None],
+        'min_samples_split': [2, 50, 100, 500],
+        'min_samples_leaf': [5, 50, 100, 500],
+        'max_features' : ['sqrt', 0.25, 0.5],
+    }
 
-    # Create a Random Forest Regressor
     rf = RandomForestRegressor(n_estimators=100, random_state=42,bootstrap=True)
 
-    # Train the model
-    rf.fit(X_train, y_train)
+    best_rf, metrics_full, cv_results = tune_and_evaluate(rf, rf_params, X_train, y_train, X_test, y_test)
 
-    # 
-    #==================================
-    # Tuning via grid search
-    #==================================
-  
-    # Define the hyperparameters
-    rf_params = {
-        'n_estimators': [500,1000],
-        'max_depth': [15, 25, 35, 50],
-        'min_samples_split': [10, 15, 25, 50],
-        'min_samples_leaf': [5, 10, 25],
-        'max_features' : ['sqrt', 0.25, 0.5],
-
-    }
-    
-    # Create a GridSearchCV object
-    grid_search_rf = GridSearchCV(estimator=rf, param_grid=rf_params, cv=3,
-                                scoring='neg_mean_squared_error',
-                                #   scoring='r2',   
-                                  return_train_score=True, # set this to True to check for overfitting
-                                  verbose=3,n_jobs=-1)
-
-    start_time = time()
-    # Perform the grid search
-    grid_search_rf.fit(X_train, y_train)
-    
-    total_time = time() - start_time
-
-    # Get the best model
-    best_rf = grid_search_rf.best_estimator_
-
-    # Calculate the metrics on train data
-    y_pred_train_rf = best_rf.predict(X_train)
-    mae_train_rf = mean_absolute_error(y_train, y_pred_train_rf)
-    rmse_train_rf = np.sqrt(mean_squared_error(y_train, y_pred_train_rf))
-    r2_train_rf = r2_score(y_train, y_pred_train_rf)
-
-    # Calculate the metrics on test data
-    y_pred_test_rf = best_rf.predict(X_test)
-    mae_test_rf = mean_absolute_error(y_test, y_pred_test_rf)
-    rmse_test_rf = np.sqrt(mean_squared_error(y_test, y_pred_test_rf))
-    r2_test_rf = r2_score(y_test, y_pred_test_rf)
-
-    # Extract cv results and calculate mean CV score
-    cv_results = pd.DataFrame.from_dict(grid_search_rf.cv_results_)
-
-    # Calculate and store the MSE on the test set for each parameter combination
-    cv_results['test_set_score'] = np.nan  # initialize column
-    for i, params in enumerate(cv_results['params']):
-        model = RandomForestRegressor(**params, random_state=42, bootstrap=True)
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        mse = mean_squared_error(y_test, y_pred)
-        cv_results.at[i, 'test_set_score'] = mse
-        
-    # cv_results.to_csv(config.data_processed / f'rfmodel_config/rfmodel_parameters_resistivityUse_{res_var}.csv', index=False)
-    cv_results.to_csv(f'/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rfmodel_parameters_resistivityUse_{res_var}.csv', index=False)
-    
-    cv_results['mean_cv_score'] = cv_results.mean_test_score #filter(regex='split\d+_test_score').mean(axis=1)
-
-    # Combine all scores and best params into a single DataFrame for exporting
-    results_df = pd.DataFrame({
-        'Best Params': [grid_search_rf.best_params_],
-        'Train MAE': [mae_train_rf],
-        'Train RMSE': [rmse_train_rf],
-        'Train R2': [r2_train_rf],
-        'Test MAE': [mae_test_rf],
-        'Test RMSE': [rmse_test_rf],
-        'Test R2': [r2_test_rf],
-        'CV MSE': [-cv_results.loc[grid_search_rf.best_index_, 'mean_cv_score']]  # Negate the CV score to get MSE
-    })
-
-    # Export the combined results DataFrame
-    # results_df.to_csv(config.data_processed / f'rfmodel_config/rfmodel_results_resistivityUse_{res_var}.csv', index=False)
-    results_df.to_csv(f'/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rfmodel_results_resistivityUse_{res_var}.csv', index=False)
-    
-    #===========================================
-    # Tune without resistivity related variables
-    #===========================================
-    # Remove the selected features from the training and testing sets
     X_train_reduced = X_train.drop([f'{res_var}'], axis=1)
     X_test_reduced = X_test.drop([f'{res_var}'], axis=1)
 
-    # Retrain the model on the reduced training data
-    best_rf.fit(X_train_reduced, y_train)
+    best_rf_reduced, metrics_reduced, cv_results_reduced = tune_and_evaluate(rf, rf_params, X_train_reduced, y_train, X_test_reduced, y_test)
+    
+    return best_rf.get_params(), metrics_full, best_rf_reduced.get_params(), metrics_reduced, cv_results, cv_results_reduced
 
-    # Evaluate the model on the reduced training data
-    y_pred_train_rf_reduced = best_rf.predict(X_train_reduced)
-    mae_train_rf_reduced = mean_absolute_error(y_train, y_pred_train_rf_reduced)
-    rmse_train_rf_reduced = np.sqrt(mean_squared_error(y_train, y_pred_train_rf_reduced))
-
-    # Evaluate the model on the reduced testing data
-    y_pred_test_rf_reduced = best_rf.predict(X_test_reduced)
-    mae_test_rf_reduced = mean_absolute_error(y_test, y_pred_test_rf_reduced)
-    rmse_test_rf_reduced = np.sqrt(mean_squared_error(y_test, y_pred_test_rf_reduced))
-
-
-    r2_train_rf = r2_score(y_train, y_pred_train_rf)
-    r2_test_rf = r2_score(y_test, y_pred_test_rf)
-
-    # For reduced model
-    r2_train_rf_reduced = r2_score(y_train, y_pred_train_rf_reduced)
-    r2_test_rf_reduced = r2_score(y_test, y_pred_test_rf_reduced)
-
-    plot_learning_curve(best_rf, "Learning Curves (Random Forest)", X, y, cv=3)
-
-    # Change the return statement to include the best_rf_params
-    # return best_rf.get_params(), mae_train_rf, rmse_train_rf, r2_train_rf, mae_test_rf, rmse_test_rf, r2_test_rf, mae_train_rf_reduced, rmse_train_rf_reduced, r2_train_rf_reduced, mae_test_rf_reduced, rmse_test_rf_reduced, r2_test_rf_reduced, total_time
-    return best_rf.get_params(), mae_train_rf, rmse_train_rf, r2_train_rf, mae_test_rf, rmse_test_rf, r2_test_rf, mae_train_rf_reduced, rmse_train_rf_reduced, r2_train_rf_reduced, mae_test_rf_reduced, rmse_test_rf_reduced, r2_test_rf_reduced, total_time
-    # return diff_mae_train, diff_rmse_train, diff_mae_test, diff_rmse_test
-
-#%%
 # Plot learning curve
 def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None,
                         n_jobs=-1, train_sizes=np.linspace(.1, 1.0, 5)):
@@ -240,147 +151,96 @@ def plot_learning_curve(estimator, title, X, y, ylim=None, cv=None,
 
     plt.legend(loc="best")
     return plt 
-# %%
-rf_out_res_0_5_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_0_5_miles')
-# %%
-rf_out_res_1_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_1_miles')
-# %%
-rf_out_res_1_5_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_1_5_miles')
+
+def get_xy_train_test(df):
+    columns_to_keep = ['mean_nitrate','N_total',#'Average_ag_area'
+                        'ProbDOpt5ppm_Shallow','ProbDOpt5ppm_Deep','ProbMn50ppb_Shallow','ProbMn50ppb_Deep',
+                        'PrecipMinusETin_1971_2000_GWRP', #'area_wt_sagbi',
+                        'CAML1990_natural_water','DTW60YrJurgens', 'HiWatTabDepMin', 'LateralPosition',  
+                        'RechargeAnnualmmWolock', 'RiverDist_NEAR','well_type_encoded',
+                        f'{res_var}']
+    
+    df2 = df[columns_to_keep]
+    df2 = df2.dropna()
+
+    # Features
+    X = df2.drop("mean_nitrate", axis=1)
+
+    # Target
+    y = df2["mean_nitrate"]
+    y[y<=0]=.00001
+    y = np.log(y)
+
+    # Split the data into a training set and a testing set
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    return X_train, X_test, y_train, y_test
 #%%
-rf_out_res_2_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_2_miles')
-#%%
-rf_out_res_2_5_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_2_5_miles')
-#%%
-rf_out_res_3_mil = rf_mod_compare(df, res_var = 'Resistivity_lyrs_9_rad_3_miles')
+# Main Code
 
-# %%
-# create a list of tuples containing the variable names and values
-data = [('0.5', *rf_out_res_0_5_mil),
-        ('1', *rf_out_res_1_mil),
-        ('1.5', *rf_out_res_1_5_mil),
-        ('2', *rf_out_res_2_mil),
-        ('2.5', *rf_out_res_2_5_mil),
-        ('3', *rf_out_res_3_mil)]
+# Load and process data
+df_main = load_data(gama_old_new)
+df = df_main[df_main.well_data_source == 'GAMA'].copy()
 
-# create a pandas DataFrame from the data
-df_diff_error = pd.DataFrame(data, columns=['Radius (miles)', 'Best Params', 'MAE training', 'RMSE training', 'R2 training', 'MAE test', 'RMSE test', 'R2 test', 'MAE training reduced', 'RMSE training reduced', 'R2 training reduced', 'MAE test reduced', 'RMSE test reduced', 'R2 test reduced', 'Training time'])
+df['well_type_encoded'] = pd.factorize(df['well_type'])[0]
+df['well_type_encoded'] = df['well_type_encoded'].where(df['well_type'].notna(), df['well_type'])
 
-# # create a pandas DataFrame from the data
-# df_diff_error = pd.DataFrame(data, columns=['Radius (miles)', 'MAE diff training', 'RMSE diff training', 'MAE diff test', 'RMSE diff test'])
+# separate wells inside cv
+well_cv = pd.read_csv(config.data_processed / 'wells_inside_CV_GAMAlatest.csv',index_col=False)
 
-# df_diff_error.to_csv(config.data_processed / 'rfmodel_config/rf_model_outputs.csv', index=False)
-df_diff_error.to_csv('/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rf_model_outputs.csv', index=False)
-
-# print the DataFrame
-print(df_diff_error)
-
-#%%
-# Creating table for paper
-
-df_diff_error2 = df_diff_error.copy()
-df_diff_error2['MAE training - MAE training reduced'] = df_diff_error['MAE training'] - df_diff_error['MAE training reduced']
-df_diff_error2['MAE test - MAE test reduced'] = df_diff_error['MAE test'] - df_diff_error['MAE test reduced']
-
-# First, melt your dataframe to long format
-df_long = df_diff_error2.melt(id_vars='Radius (miles)', var_name='Metric', value_name='Value')
-
-
-# Ensure the data type is numeric
-df_long['Value'] = pd.to_numeric(df_long['Value'], errors='coerce')
-
-# Select only rows with metrics you are interested in
-metrics = ['MAE training', 'MAE test', 'R2 training', 'R2 test','MAE training - MAE training reduced','MAE test - MAE test reduced']
-df_selected = df_long[df_long['Metric'].isin(metrics)]
-
-# Pivot your dataframe to wide format
-df_pivot = df_selected.pivot(index='Metric', columns='Radius (miles)', values='Value')
-
-# Round to 2 decimals
-df_pivot = df_pivot.round(3)
-
-# Define your order
-order = ['MAE training', 'MAE test',  'R2 training', 'R2 test', 'MAE training - MAE training reduced', 'MAE test - MAE test reduced']
-
-# Apply the order to your DataFrame
-df_pivot = df_pivot.reindex(order)
-
-# Display your final DataFrame
-print(df_pivot)
-
-# df_pivot.to_csv('/Users/szalam/Main/00_Research_projects/rf_table_for_manuscript.csv')
-df_pivot.to_csv('/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rf_table_for_manuscript.csv')
-
-#===============================
-# Checking overfitting
-#===============================
-# assuming rf_out_res_0_5_mil is the output from your function
-best_rf, mae_train_rf, rmse_train_rf, r2_train_rf, mae_test_rf, rmse_test_rf, r2_test_rf, mae_train_rf_reduced, rmse_train_rf_reduced, r2_train_rf_reduced, mae_test_rf_reduced, rmse_test_rf_reduced, r2_test_rf_reduced, total_time = rf_out_res_2_mil
-
-
-print("Difference in RMSE between training and test sets: ", rmse_test_rf - rmse_train_rf)
-print("Difference in MAE between training and test sets: ", mae_test_rf - mae_train_rf)
-#If the difference in RMSE or MAE between training and test sets is significantly positive, it's a sign that your model could be overfitting
-
+# Assuming df is your dataframe with all wells
+df_cv = df[df['well_id'].isin(well_cv['well_id'])]
+df = filter_data(df_cv, well_type_select,all_dom_flag)
+df = df.drop(['well_id', 'well_data_source','start_date', 'end_date'], axis=1)
 
 #%%
+# For the first loop:
+for i, res_var in tqdm(enumerate(['Resistivity_lyrs_9_rad_2_miles']), total=1, desc="Running models", unit="model"):
+    best_params, metrics_full, best_params_reduced, metrics_reduced, cv_results, cv_results_reduced = rf_mod_compare(df, res_var=res_var)
+    cv_results.to_csv(f'/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rfmodel_parameters_resistivityUse_{res_var}.csv', index=False)
+    cv_results_reduced.to_csv(f'/Users/szalam/Main/00_Research_projects/GWPA_rf_outputs/rfmodel_config/rfmodel_parameters_resistivityUse_{res_var}_reduced.csv', index=False)
 
-# If  training score is much higher than the cross-validation score and there's a large gap between the curves, it's a sign of overfitting.
+#%%
+X_train, X_test, y_train, y_test = get_xy_train_test(df)
+# create model with best parameters
+best_model = RandomForestRegressor(**best_params)
 
-# %%
-# plot a line graph of radius vs MAE training-test
-plt.figure(figsize=(8, 6))
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE training reduced']-df_diff_error['MAE training']), label='Train', linestyle='--', marker='o')
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['MAE test reduced']-df_diff_error['MAE test']), label='Test', linestyle='-.', marker='x')
+# train the model
+best_model.fit(X_train, y_train)
 
-# add labels and title to the plot
-plt.xlabel('Radius from well (miles)',size = 14)
-plt.ylabel('MAE Δ with/without Resistivity',size = 14)
-plt.title('Radius vs MAE difference ',size = 15)
+# get feature importances
+feature_importances = best_model.feature_importances_
+#%%
+# Get feature names
+feature_names = X_train.columns
 
-# add a legend to the plot
-plt.legend(fontsize = 13)
+#%%
+def plot_feature_importance(feature_importances, feature_names, title):
+    """
+    Plots the importance of features from a fitted sklearn model
+    """
+    indices = np.argsort(feature_importances)
 
-# change the font size of the x-axis tick labels
-plt.tick_params(axis='x', labelsize=12)
-plt.tick_params(axis='y', labelsize=12)
+    plt.figure(figsize=(10, 6))
+    plt.title(title)
+    plt.barh(range(len(indices)), feature_importances[indices], color='b', align='center')
+    plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
+    plt.xlabel('Relative Importance')
+    plt.show()
 
-# show the plot
-plt.show()
-# %%
-plt.figure(figsize=(8, 6))
-# plot a line graph of radius vs MAE training-test
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE training reduced']-df_diff_error['RMSE training']), label='Train', linestyle='--', marker='o')
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['RMSE test reduced']-df_diff_error['RMSE test']), label='Test', linestyle='-.', marker='x')
+#%%
+# Plot feature importance
+plot_feature_importance(feature_importances, feature_names, f'Feature Importance with {res_var}')
 
-# add labels and title to the plot
-plt.xlabel('Radius from well (miles)', size = 14)
-plt.ylabel('RMSE Δ with/without Resistivity)', size = 14)
-plt.title('Radius vs RMSE difference', size = 15)
+#%%
+import shap
 
-# add a legend to the plot
-plt.legend(fontsize = 13)
-# change the font size of the x-axis tick labels
-plt.tick_params(axis='x', labelsize=12)
-plt.tick_params(axis='y', labelsize=12)
-# show the plot
-plt.show()
-# %%
-plt.figure(figsize=(8, 6))
-# plot a line graph of radius vs MAE training-test
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['R2 training reduced']-df_diff_error['R2 training']), label='Train', linestyle='--', marker='o')
-plt.plot(df_diff_error['Radius (miles)'], (df_diff_error['R2 test reduced']-df_diff_error['R2 test']), label='Test', linestyle='-.', marker='x')
+# create the explainer object with the random forest model
+explainer = shap.Explainer(best_model)
 
-# add labels and title to the plot
-plt.xlabel('Radius from well (miles)', size = 14)
-plt.ylabel('R2 Δ with/without Resistivity)', size = 14)
-plt.title('Radius vs R2 difference', size = 15)
+# Transform the test set
+shap_values = explainer.shap_values(X_test)
 
-# add a legend to the plot
-plt.legend(fontsize = 13)
-# change the font size of the x-axis tick labels
-plt.tick_params(axis='x', labelsize=12)
-plt.tick_params(axis='y', labelsize=12)
-# show the plot
-plt.show()
-
-# %%
+# plot
+shap.summary_plot(shap_values, X_train, plot_type="bar")
+shap.dependence_plot('Resistivity_lyrs_9_rad_2_miles', shap_values, X_test)

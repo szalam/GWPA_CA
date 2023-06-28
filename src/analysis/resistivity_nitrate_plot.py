@@ -47,7 +47,7 @@ def plot_data(df, x_col, y_col):
 
 # Constants
 gama_old_new = 2
-all_dom_flag = 1 # 1: All, 2: Domestic
+all_dom_flag = 2 # 1: All, 2: Domestic
 if all_dom_flag == 2:
     well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new) 
 if all_dom_flag == 1:
@@ -87,7 +87,7 @@ def plot_boxplot(df, x_col, y_col, aem_type,all_dom_flag):
     """Plot boxplot"""
     plt.figure(figsize=(10, 8))
     sns.boxplot(x=x_col, y=y_col, data=df, width=0.5, color = 'orange')
-    plt.xlabel(f'Depth Average {aem_type} (\u2126-m) for ~30m', fontsize = 24)
+    plt.xlabel(f'Depth Average {aem_type} (\u2126-m) for ~32m', fontsize = 24)
     plt.ylabel('Nitrate-N [mg/l]', fontsize = 24)
     plt.yscale('log')
     plt.ylim(0, 1500)

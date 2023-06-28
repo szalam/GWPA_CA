@@ -173,8 +173,6 @@ aemres_wtsaline = aemres_tmp_wtsalineregion[['Resistivity', 'geometry', 'HR', 'S
 aemres_subset = aemres_tmp_subsetregion[['Resistivity', 'geometry', 'HR', 'SubRegion']]
 
 #%%
-# aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.geojson", driver="GeoJSON") # export to GeoJSON
-#%%
 aemres2.to_file(config.data_processed / "DAR/DAR_9lyrs.shp", driver="ESRI Shapefile") # export to GeoJSON
 aemres_wtsaline.to_file(config.data_processed / "DAR/DAR_9lyrs_wt_saline.shp", driver="ESRI Shapefile") # export to GeoJSON
 aemres_subset.to_file(config.data_processed / "DAR/DAR_9lyrs_subsetregions.shp", driver="ESRI Shapefile") # export to GeoJSON
