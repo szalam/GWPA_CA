@@ -27,9 +27,14 @@ def get_combined_dataset(csv_files):
     # remove duplicate based on well_id
     df = df.drop_duplicates(subset='well_id', keep='first')
 
+    # drop 'Unnamed: 0' if it exists
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns='Unnamed: 0')
+
     # Iterate over the rest of the csv files
     for csv_file in csv_files[1:]:
         df2 = pd.read_csv(csv_file)
+
         # rename column 'WELL ID' to 'well_id' if it exists
         if 'WELL ID' in df2.columns:
             df2.rename(columns={'WELL ID': 'well_id'}, inplace=True)
@@ -37,10 +42,18 @@ def get_combined_dataset(csv_files):
         # remove duplicate based on well_id
         df2 = df2.drop_duplicates(subset='well_id', keep='first')
 
+        # drop 'Unnamed: 0' if it exists
+        if 'Unnamed: 0' in df2.columns:
+            df2 = df2.drop(columns='Unnamed: 0')
+
+        # exclude columns that are already in the master df
+        df2 = df2.drop(columns=[col for col in df2.columns if col in df.columns and col != 'well_id'])
+
         # merge the dataframe with the current csv file based on well_id
         df = pd.merge(df, df2, on='well_id', how='outer')
 
-    return(df)
+    return df
+
 
 df_gama = get_combined_dataset(csv_files_gama)
 df_gama['well_data_source'] = 'GAMA'
@@ -57,15 +70,33 @@ df = df_gama.copy()
 columns_to_keep = ['well_id', 'APPROXIMATE LATITUDE',
        'APPROXIMATE LONGITUDE', 'mean_nitrate', 'median_nitrate',
        'max_nitrate', 'min_nitrate', 'measurement_count',
-       'mean_concentration_2015-2022', 'mean_concentration_2010-2015',
-       'mean_concentration_2005-2010', 'mean_concentration_2000-2005',
-       'mean_concentration_2000-2022', 'mean_concentration_2010-2022',
-       'mean_concentration_2007-2009', 'mean_concentration_2012-2015',
-       'mean_concentration_2019-2021', 'mean_concentration_2017-2018',
-       'trend','change_per_year', 'start_date', 'end_date', 
+    #    'trend','change_per_year', 
+       'start_date', 'end_date', 
        'total_obs', 'well_type',
        'Conductivity_lyrs_9_rad_0.5mile','Conductivity_lyrs_9_rad_1mile','Conductivity_lyrs_9_rad_1.5mile','Conductivity_lyrs_9_rad_2mile','Conductivity_lyrs_9_rad_2.5mile','Conductivity_lyrs_9_rad_3mile','Conductivity_lyrs_9_rad_3.5mile',
        'well_data_source']
+
+# Start with the periods you explicitly defined
+explicit_periods = [
+    "2015-2022", "2010-2015", "2005-2010", "2000-2005", 
+    "2000-2022", "2010-2022", "2007-2009", "2012-2015", 
+    "2019-2021", "2017-2018"
+]
+
+for period in explicit_periods:
+    columns_to_keep.append(f'mean_concentration_{period}')
+
+# Now add columns for every 3-year period from 1990 to 2022
+for year in range(1990, 2022, 3):
+    key = f"{year}-{year + 2}" # Adjusted the end year to make it a 3-year period without overlap
+    if key not in explicit_periods:
+        columns_to_keep.append(f'mean_concentration_{key}')
+
+# And add columns for every 5-year period from 1990 to 2022
+for year in range(1990, 2022, 5):
+    key = f"{year}-{year + 4}" # Adjusted the end year to make it a 5-year period without overlap
+    if key not in explicit_periods:
+        columns_to_keep.append(f'mean_concentration_{key}')
 
 #%%
 # Inverse conductivity to get depth average resistivity
@@ -119,6 +150,11 @@ for file_name in file_redox:
     df_tmp = pd.read_csv(config.data_processed / 'redox_Ninput_katetal/exported_csv_redox_Ninput' / f"{file_name}_GAMAlatest_rad_2mil.csv")
     df_tmp['mean_value'] = df_tmp['mean_value'].apply(lambda x: np.nan if x < 0 else x)
     df_tmp = df_tmp.rename(columns={"mean_value": file_name})
+
+    # drop 'Unnamed: 0' if it exists
+    if 'Unnamed: 0' in df_tmp.columns:
+        df_tmp = df_tmp.drop(columns='Unnamed: 0')
+
     # Replace negative values with NaN
     df_dict[file_name] = df_tmp
 

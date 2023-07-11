@@ -47,7 +47,7 @@ def plot_data(df, x_col, y_col):
 
 # Constants
 gama_old_new = 2
-all_dom_flag = 2 # 1: All, 2: Domestic
+all_dom_flag = 1 # 1: All, 2: Domestic
 if all_dom_flag == 2:
     well_type_select = {1: 'Domestic', 2: 'DOMESTIC'}.get(gama_old_new) 
 if all_dom_flag == 1:
@@ -69,7 +69,8 @@ df = filter_data(df_cv, well_type_select,all_dom_flag)
 
 # Plot data
 plot_data(df, cond_type_used, 'mean_nitrate')
-
+#%%
+# df['mean_nitrate']=df['mean_nitrate']/df['N_total']
 # %%
 # Functions
 def process_data(df, aem_type, cond_type_used):
@@ -112,6 +113,7 @@ def plot_histogram(df, cond_type_used, aem_type):
     plt.grid(axis='y')
     plt.show()
 
+#%%
 # Process and plot data
 df = process_data(df, aem_type, cond_type_used)
 plot_boxplot(df, 'Conductivity_binned', 'mean_nitrate', aem_type, all_dom_flag = all_dom_flag)

@@ -65,30 +65,30 @@ statistics = df_nitrate.groupby("well_id").agg({
     "DATE": "count"
 }).reset_index()
 
-# Calculate the historic trend in data trend in data
-#=====================================================
-# Create a new DataFrame with the statistics for each well
-trend_df_nitrate = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
+# # Calculate the historic trend in data trend in data
+# #=====================================================
+# # Create a new DataFrame with the statistics for each well
+# trend_df_nitrate = pd.DataFrame(columns=['well_id', 'trend','change_per_year'])
 
-for well_id, group in df_nitrate.groupby('well_id'):
-    try:
-        if len(group) < min_sample:
-            trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
-        else:
-            group = group.sort_values(by='DATE')
-            x = group['DATE'].apply(lambda x: x.toordinal())
-            y = group['RESULT'].values
-            slope, intercept, r_value, p_value, std_err = linregress(x, y)
-            if p_value < 0.05:
-                change_per_year = slope*365
-                if(slope>0):
-                    trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
-                elif(slope<0):
-                    trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
-            else:
-                trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
-    except ValueError:
-        trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'not_significant','change_per_year': 0, 'total_obs': len(group)}, ignore_index=True)
+# for well_id, group in df_nitrate.groupby('well_id'):
+#     try:
+#         if len(group) < min_sample:
+#             trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': f'sample_less_than_{min_sample}','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
+#         else:
+#             group = group.sort_values(by='DATE')
+#             x = group['DATE'].apply(lambda x: x.toordinal())
+#             y = group['RESULT'].values
+#             slope, intercept, r_value, p_value, std_err = linregress(x, y)
+#             if p_value < 0.05:
+#                 change_per_year = slope*365
+#                 if(slope>0):
+#                     trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'positive', 'change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
+#                 elif(slope<0):
+#                     trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'negative','change_per_year':change_per_year,'total_obs': len(group)}, ignore_index=True)
+#             else:
+#                 trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'not_significant','change_per_year':0,'total_obs': len(group)}, ignore_index=True)
+#     except ValueError:
+#         trend_df_nitrate = trend_df_nitrate.append({'well_id': well_id, 'trend': 'not_significant','change_per_year': 0, 'total_obs': len(group)}, ignore_index=True)
 
 # positive_df_nitrate = trend_df_nitrate.query('trend == "positive"')
 # negative_df_nitrate = trend_df_nitrate.query('trend == "negative"')
@@ -112,8 +112,21 @@ periods = {
     "2012-2015": (2012, 2015),
     "2019-2021": (2019, 2021),
     "2017-2018": (2017, 2018)
-
 }
+
+# Create periods for every 3 years from 1990 to 2022
+for year in range(1990, 2022, 3):
+    key = f"{year}-{year + 2}" # Adjusted the end year to make it a 3-year period without overlap
+    if key not in periods:
+        periods[key] = (year, year + 2)
+
+# Create periods for every 5 years from 1990 to 2022
+for year in range(1990, 2022, 5):
+    key = f"{year}-{year + 4}" # Adjusted the end year to make it a 5-year period without overlap
+    if key not in periods:
+        periods[key] = (year, year + 4)
+
+
 
 for period, (start, end) in periods.items():
     mask = (df_nitrate["period"] >= start) & (df_nitrate["period"] <= end)
@@ -159,8 +172,8 @@ grouped = grouped.reset_index()
 # Rounding to three decimals
 grouped = grouped.round(3)
 
-# Merging trend data
-grouped = pd.merge(grouped, trend_df_nitrate, on="well_id")
+# # Merging trend data
+# grouped = pd.merge(grouped, trend_df_nitrate, on="well_id")
 
 well_type_tmp = well_type_tmp.drop_duplicates(subset='well_id', keep='first')
 grouped = pd.merge(grouped, well_type_tmp, on="well_id")
