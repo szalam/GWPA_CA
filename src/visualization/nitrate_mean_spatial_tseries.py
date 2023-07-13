@@ -99,7 +99,8 @@ from matplotlib.animation import PillowWriter
 
 # Load shapefile
 cv = gpd.read_file(config.shapefile_dir / 'cv.shp')
-
+ca = gpd.read_file(config.shapefile_dir / 'CA_State_TIGER2016.shp')
+ca = ca.to_crs(cv.crs)
 # Define grid size
 grid_size = 0.05 # 0.01 approx equal to 1km
 
@@ -196,7 +197,8 @@ from IPython.display import HTML
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-fig, ax = plt.subplots()
+
+fig, ax = plt.subplots(figsize=(4,7))
 
 # Create a custom colormap
 # colors = ["#D3D3D3", "#87CEEB", "#8BCB4A", "yellow", "orange", "red"]
@@ -209,13 +211,18 @@ time_periods = [col for col in grid_discrete.columns if 'mean_concentration' in 
 
 def update(num):
     ax.clear()
-    grid_discrete.plot(column=time_periods[num], ax=ax, legend=True, cmap=cmap,alpha = .8)
+    grid_discrete.plot(column=time_periods[num], ax=ax, legend=True, cmap=cmap,alpha = .8, zorder = 2)
     
     # Add your shapefile to the plot
-    cv.boundary.plot(ax=ax, color='black', linewidth=1)
+    cv.boundary.plot(ax=ax, color='black',facecolor='white', linewidth=1,zorder = 1)
+    ca.boundary.plot(ax=ax, color='gray',facecolor='lightgray', linewidth=.5,zorder = 0,alpha = .5)
     
     ax.set_title(f"Mean Concentration {time_periods[num].split('_')[-1]}")
     ax.axis('off')
+
+    # Set the plot extent to match the cv GeoDataFrame's geometry
+    ax.set_xlim(cv.total_bounds[0]-.5, cv.total_bounds[2]+.5)
+    ax.set_ylim(cv.total_bounds[1]-.5, cv.total_bounds[3]+.5)
 
 ani = FuncAnimation(fig, update, frames=range(len(time_periods)), repeat=True, interval=1500)
 

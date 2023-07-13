@@ -154,7 +154,7 @@ for period, (start, end) in periods.items():
         df_nitrate = pd.merge(df_nitrate, count_data, on=["well_id"], how='left')
         df_nitrate.reset_index(drop=True, inplace=True)
         mask = (df_nitrate["period"] >= start) & (df_nitrate["period"] <= end)
-        df_nitrate.loc[mask, f"mean_concentration_{period}"] = df_nitrate.loc[mask, f"mean_concentration_{period}"].where(df_nitrate[f"count_{period}"]>=5, float('nan'))
+        # df_nitrate.loc[mask, f"mean_concentration_{period}"] = df_nitrate.loc[mask, f"mean_concentration_{period}"].where(df_nitrate[f"count_{period}"]>=5, float('nan'))
 
 
 # Merge the statistics DataFrame with the original DataFrame
